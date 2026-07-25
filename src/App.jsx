@@ -1,153 +1,46 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from "react";
 import {
   Search, Plus, X, Phone, Download, Upload, Trash2, ArrowUpRight, User,
   Check, Tag as TagIcon, Layers, Brain, CalendarDays, Camera, Sparkles,
-  ChevronLeft, ChevronRight, Briefcase, MapPin, Mail, Heart, Send, Users,
+  ChevronLeft, ChevronRight, Briefcase, MapPin, Mail, Heart, Send, Users, Wand2, ListChecks, Gauge, Target, CreditCard,
 } from "lucide-react";
 import { storage } from "./storage";
+import { MESSENGERS, DEFAULT_CATEGORIES, ENERGY_OPTIONS, TRUST_OPTIONS, STEP_DEFS } from "./constants.js";
+import { emptyMessengers, emptyContact, emptyTask, emptyGoal, emptySubscription, computeGoalProgress, initials, pad, formatRuPhone, csvEscape, resizeImageFile } from "./helpers.js";
+import { globalCss, INK, PURPLE, PURPLE_SOFT, styles } from "./theme.js";
+import { PsychRow, Field, InlineAdd } from "./components/Ui.jsx";
+import ContactCard from "./components/ContactCard.jsx";
 
-const MESSENGERS = [
-  { key: "whatsapp", label: "WhatsApp", short: "WA", color: "#25A45C" },
-  { key: "vk", label: "VK", short: "VK", color: "#3F6FCB" },
-  { key: "telegram", label: "Telegram", short: "TG", color: "#2AA0DB" },
-  { key: "line", label: "LINE", short: "LN", color: "#22B14C" },
-];
+// Ленивая загрузка: код AI-помощника и импорта из Google подгружается
+// отдельным чанком только в момент открытия — не увеличивает вес
+// первого экрана приложения.
+const AiAssistantModal = lazy(() => import("./components/AiAssistantModal.jsx"));
+const ImportModal = lazy(() => import("./components/ImportModal.jsx"));
+const QuickAddAI = lazy(() => import("./components/QuickAddAI.jsx"));
+const TaskBoard = lazy(() => import("./components/TaskBoard.jsx"));
+const HealthCheck = lazy(() => import("./components/HealthCheck.jsx"));
+const Goals = lazy(() => import("./components/Goals.jsx"));
+const Profile = lazy(() => import("./components/Profile.jsx"));
 
-const DEFAULT_CATEGORIES = ["Друзья", "Работа", "Семья", "Нетворкинг"];
-const ENERGY_OPTIONS = ["Заряжает", "Нейтрально", "Истощает"];
-const TRUST_OPTIONS = [1, 2, 3, 4, 5];
-const STEP_DEFS = [
-  { key: "basic", label: "Основное" },
-  { key: "messengers", label: "Мессенджеры" },
-  { key: "about", label: "О человеке" },
-  { key: "psych", label: "Портрет" },
-];
-const AI_SUGGESTIONS = ["Почини машину", "Нужен дизайнер", "Кто разбирается в праве", "Ищу няню"];
-
-function emptyMessengers() {
-  const m = {};
-  MESSENGERS.forEach((x) => { m[x.key] = { enabled: false, nick: "", phone: "" }; });
-  return m;
-}
-
-function emptyContact() {
-  return {
-    id: `c_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    avatar: null,
-    firstName: "",
-    lastName: "",
-    phone: "",
-    email: "",
-    job: "",
-    company: "",
-    city: "",
-    birthday: "",
-    interests: "",
-    helpWith: "",
-    category: "",
-    tags: [],
-    messengers: emptyMessengers(),
-    comment: "",
-    psych: {
-      personality: "", values: "", commStyle: "", triggers: "", conflictStyle: "",
-      trust: "", energy: "", howMet: "", lastContact: "",
-    },
-    createdAt: Date.now(),
-  };
+// Лёгкий fallback на время подгрузки чанка (обычно доли секунды на 3G+)
+function LazyFallback() {
+  return (
+    <div style={styles.overlay}>
+      <div style={{ ...styles.formSheet, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 160 }}>
+        <div className="fp-pulse" style={{ color: "rgba(11,11,16,0.5)", fontSize: 13, fontWeight: 600 }}>Загрузка…</div>
+      </div>
+    </div>
+  );
 }
 
-function initials(c) {
-  const a = (c.firstName || "").trim()[0] || "";
-  const b = (c.lastName || "").trim()[0] || "";
-  return (a + b).toUpperCase() || "?";
-}
-function pad(n) { return String(n).padStart(2, "0"); }
-function csvEscape(v) {
-  const s = String(v ?? "");
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
-function parseCsv(text) {
-  const rows = [];
-  let row = [], field = "", inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQuotes) {
-      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
-      else field += c;
-    } else {
-      if (c === '"') inQuotes = true;
-      else if (c === ",") { row.push(field); field = ""; }
-      else if (c === "\n" || c === "\r") {
-        if (c === "\r" && text[i + 1] === "\n") i++;
-        row.push(field); field = "";
-        if (row.length > 1 || row[0] !== "") rows.push(row);
-        row = [];
-      } else field += c;
-    }
-  }
-  if (field.length || row.length) { row.push(field); rows.push(row); }
-  return rows;
-}
-function findColIndex(headers, matcher) { return headers.findIndex((h) => matcher(h.trim().toLowerCase())); }
-function contactsFromGoogleCsv(text) {
-  const rows = parseCsv(text);
-  if (rows.length < 2) return [];
-  const headers = rows[0];
-  const firstIdx = findColIndex(headers, (h) => h === "first name" || h === "given name");
-  const lastIdx = findColIndex(headers, (h) => h === "last name" || h === "family name");
-  const nameIdx = findColIndex(headers, (h) => h === "name");
-  const phoneIdx = findColIndex(headers, (h) => h.includes("phone") && h.includes("value"));
-  const emailIdx = findColIndex(headers, (h) => h.includes("e-mail") && h.includes("value"));
-  const notesIdx = findColIndex(headers, (h) => h === "notes");
-  const out = [];
-  for (let i = 1; i < rows.length; i++) {
-    const r = rows[i];
-    if (!r || r.every((f) => !f || !f.trim())) continue;
-    let first = firstIdx >= 0 ? (r[firstIdx] || "").trim() : "";
-    let last = lastIdx >= 0 ? (r[lastIdx] || "").trim() : "";
-    if (!first && !last && nameIdx >= 0) {
-      const full = (r[nameIdx] || "").trim();
-      const parts = full.split(" ");
-      first = parts[0] || ""; last = parts.slice(1).join(" ") || "";
-    }
-    const phone = phoneIdx >= 0 ? (r[phoneIdx] || "").trim() : "";
-    const email = emailIdx >= 0 ? (r[emailIdx] || "").trim() : "";
-    const notes = notesIdx >= 0 ? (r[notesIdx] || "").trim() : "";
-    if (!first && !last && !phone) continue;
-    const c = emptyContact();
-    c.firstName = first; c.lastName = last; c.phone = phone; c.email = email; c.comment = notes;
-    out.push(c);
-  }
-  return out;
-}
-function resizeImageFile(file, maxDim = 200, quality = 0.85) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > height) { if (width > maxDim) { height = height * (maxDim / width); width = maxDim; } }
-        else { if (height > maxDim) { width = width * (maxDim / height); height = maxDim; } }
-        const canvas = document.createElement("canvas");
-        canvas.width = width; canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", quality));
-      };
-      img.onerror = reject;
-      img.src = reader.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 export default function ForPeople() {
   const [contacts, setContacts] = useState([]);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   const [tags, setTags] = useState([]);
+  const [tasks, setTasks] = useState([]); // NEW — задачи по контактам (Модуль 3A/3B)
+  const [goals, setGoals] = useState([]); // NEW — цели (Модуль 3D)
+  const [subscription, setSubscription] = useState(emptySubscription()); // NEW — тариф/лимит AI (Модуль 3D)
   const [loaded, setLoaded] = useState(false);
 
   const [query, setQuery] = useState("");
@@ -166,19 +59,18 @@ export default function ForPeople() {
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
   const [importOpen, setImportOpen] = useState(false);
-  const [importPreview, setImportPreview] = useState(null);
-  const [importError, setImportError] = useState("");
-  const fileInputRef = useRef(null);
   const avatarInputRef = useRef(null);
 
   const [aiOpen, setAiOpen] = useState(false);
-  const [aiMessages, setAiMessages] = useState([]);
-  const [aiInput, setAiInput] = useState("");
-  const [aiLoading, setAiLoading] = useState(false);
-  const aiScrollRef = useRef(null);
+  const [quickAddOpen, setQuickAddOpen] = useState(false); // NEW — умное добавление через AI/голос
+  const [taskBoardOpen, setTaskBoardOpen] = useState(false); // NEW — таск-борд (Модуль 3B)
+  const [healthCheckOpen, setHealthCheckOpen] = useState(false); // NEW — анализ окружения (Модуль 3C)
+  const [goalsOpen, setGoalsOpen] = useState(false); // NEW — цели (Модуль 3D)
+  const [profileOpen, setProfileOpen] = useState(false); // NEW — личный кабинет (Модуль 3D)
 
   const anyOverlayOpen = !!(
-    openId || drafting || confirmDeleteId || bulkPopover || confirmBulkDelete || importOpen || aiOpen
+    openId || drafting || confirmDeleteId || bulkPopover || confirmBulkDelete || importOpen ||
+    aiOpen || quickAddOpen || taskBoardOpen || healthCheckOpen || goalsOpen || profileOpen
   );
 
   useEffect(() => {
@@ -206,6 +98,9 @@ export default function ForPeople() {
       try { const r = await storage.get("fp_contacts", false); if (r && r.value) setContacts(JSON.parse(r.value)); } catch (e) {}
       try { const r2 = await storage.get("fp_categories", false); if (r2 && r2.value) setCategories(JSON.parse(r2.value)); } catch (e) {}
       try { const r3 = await storage.get("fp_tags", false); if (r3 && r3.value) setTags(JSON.parse(r3.value)); } catch (e) {}
+      try { const r4 = await storage.get("fp_tasks", false); if (r4 && r4.value) setTasks(JSON.parse(r4.value)); } catch (e) {}
+      try { const r5 = await storage.get("fp_goals", false); if (r5 && r5.value) setGoals(JSON.parse(r5.value)); } catch (e) {}
+      try { const r6 = await storage.get("fp_subscription", false); if (r6 && r6.value) setSubscription({ ...emptySubscription(), ...JSON.parse(r6.value) }); } catch (e) {}
       setLoaded(true);
     })();
   }, []);
@@ -222,6 +117,18 @@ export default function ForPeople() {
   const persistTags = useCallback(async (next) => {
     setTags(next);
     try { await storage.set("fp_tags", JSON.stringify(next), false); } catch (e) {}
+  }, []);
+  const persistTasks = useCallback(async (next) => {
+    setTasks(next);
+    try { await storage.set("fp_tasks", JSON.stringify(next), false); } catch (e) {}
+  }, []);
+  const persistGoals = useCallback(async (next) => {
+    setGoals(next);
+    try { await storage.set("fp_goals", JSON.stringify(next), false); } catch (e) {}
+  }, []);
+  const persistSubscription = useCallback(async (next) => {
+    setSubscription(next);
+    try { await storage.set("fp_subscription", JSON.stringify(next), false); } catch (e) {}
   }, []);
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2000); }
@@ -290,10 +197,15 @@ export default function ForPeople() {
   }
 
   function toggleSelectMode() { setSelectMode((v) => !v); setSelectedIds(new Set()); setBulkPopover(null); }
-  function toggleSelected(id) {
+  const toggleSelected = useCallback((id) => {
     setSelectedIds((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
-  }
-  function handleCardClick(c) { if (selectMode) toggleSelected(c.id); else setOpenId(c.id); }
+  }, []);
+  // useCallback + зависимость только от selectMode: пересоздаётся не на каждый
+  // рендер, а лишь когда реально меняется режим выбора. Это позволяет
+  // React.memo у ContactCard действительно пропускать перерисовку карточек.
+  const handleCardClick = useCallback((id) => {
+    if (selectMode) toggleSelected(id); else setOpenId(id);
+  }, [selectMode, toggleSelected]);
 
   async function bulkSetCategory(cat) {
     const next = contacts.map((c) => (selectedIds.has(c.id) ? { ...c, category: cat } : c));
@@ -334,75 +246,110 @@ export default function ForPeople() {
     showToast("Выгружено в CSV");
   }
 
-  function handleFilePicked(e) {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    setImportError("");
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = contactsFromGoogleCsv(String(reader.result));
-        if (parsed.length === 0) { setImportError("Не удалось найти контакты в файле. Убедитесь, что это экспорт в формате Google CSV."); setImportPreview(null); }
-        else setImportPreview(parsed);
-      } catch (err) { setImportError("Не получилось прочитать файл."); setImportPreview(null); }
+  async function handleImportConfirmed(parsedContacts) {
+    await persistContacts([...contacts, ...parsedContacts]);
+    showToast(`Импортировано: ${parsedContacts.length}`);
+    setImportOpen(false);
+  }
+
+  // Принимает "parsed" от QuickAddAI: {firstName,lastName,category,tags,job,
+  // interests,helpWith,comment,task}. Здесь и только здесь превращаем это
+  // в настоящий Contact/Task и сохраняем — компонент виджета ничего не пишет
+  // в storage сам, только собирает и валидирует данные.
+  async function handleQuickAddCreate(parsed) {
+    if (!parsed.firstName.trim() && !parsed.lastName.trim()) {
+      showToast("AI не распознал имя — откройте карточку и впишите вручную.");
+    }
+    const newContact = {
+      ...emptyContact(),
+      firstName: parsed.firstName.trim(),
+      lastName: parsed.lastName.trim(),
+      category: (parsed.category || "").trim(),
+      tags: (parsed.tags || []).filter(Boolean),
+      job: (parsed.job || "").trim(),
+      interests: (parsed.interests || "").trim(),
+      helpWith: (parsed.helpWith || "").trim(),
+      comment: (parsed.comment || "").trim(),
     };
-    reader.readAsText(file);
-  }
-  async function confirmImport() {
-    if (!importPreview || importPreview.length === 0) return;
-    await persistContacts([...contacts, ...importPreview]);
-    showToast(`Импортировано: ${importPreview.length}`);
-    setImportOpen(false); setImportPreview(null);
-  }
+    await persistContacts([...contacts, newContact]);
+    if (newContact.category && !categories.includes(newContact.category)) {
+      await persistCategories([...categories, newContact.category]);
+    }
+    const newTags = newContact.tags.filter((t) => !tags.includes(t));
+    if (newTags.length > 0) await persistTags([...tags, ...newTags]);
 
-  useEffect(() => {
-    if (aiScrollRef.current) aiScrollRef.current.scrollTop = aiScrollRef.current.scrollHeight;
-  }, [aiMessages, aiLoading]);
-
-  async function sendAiQuery(text) {
-    const q = (text ?? aiInput).trim();
-    if (!q || aiLoading) return;
-    setAiInput("");
-    setAiMessages((prev) => [...prev, { role: "user", text: q }]);
-    setAiLoading(true);
-    try {
-      const compact = contacts.map((c) => ({
-        id: c.id, name: `${c.firstName} ${c.lastName}`.trim(), category: c.category, tags: c.tags,
-        job: c.job, city: c.city, interests: c.interests, helpWith: c.helpWith,
-        note: (c.comment || "").slice(0, 140), values: (c.psych?.values || "").slice(0, 140),
-      }));
-      const prompt = `Ты помощник личной книги контактов "for people". Вот контакты пользователя в JSON: ${JSON.stringify(compact)}. Запрос пользователя: "${q}". Определи, кто из контактов может помочь, опираясь на поля job, interests, helpWith, tags, category, note, values. Ответь СТРОГО в формате JSON без markdown, без пояснений вне JSON: {"message": "короткая дружелюбная фраза на русском, представляющая подходящих людей, или сообщение что подходящих контактов не нашлось", "matchIds": ["id1","id2"]}. Если контактов нет или ничего не подходит — matchIds: [].`;
-
-      // ВАЖНО: ключ Anthropic API нельзя хранить в коде фронтенда — его увидит
-      // любой пользователь через "Инструменты разработчика" в браузере.
-      // Поэтому запрос идёт не напрямую в Anthropic, а на твой собственный
-      // маленький backend (прокси), который и хранит ключ у себя.
-      // Адрес backend задаётся в файле .env через VITE_AI_PROXY_URL.
-      const proxyUrl = import.meta.env.VITE_AI_PROXY_URL;
-      if (!proxyUrl) {
-        setAiMessages((prev) => [...prev, {
-          role: "ai",
-          text: "AI-помощник ещё не подключён: не задан адрес backend-прокси (VITE_AI_PROXY_URL в .env). Смотри README — там пример готового прокси-сервера.",
-          matches: [],
-        }]);
-        return;
-      }
-
-      const response = await fetch(proxyUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+    if (parsed.task && parsed.task.title) {
+      const newTask = emptyTask({
+        contactId: newContact.id,
+        type: parsed.task.type || "follow_up",
+        title: parsed.task.title.trim(),
+        dueDate: parsed.task.dueDate || null,
       });
-      const parsed = await response.json(); // прокси должен вернуть { message, matchIds }
-      const matches = contacts.filter((c) => (parsed.matchIds || []).includes(c.id));
-      setAiMessages((prev) => [...prev, { role: "ai", text: parsed.message || "Готово.", matches }]);
-    } catch (err) {
-      setAiMessages((prev) => [...prev, { role: "ai", text: "Не получилось обработать запрос. Попробуйте переформулировать.", matches: [] }]);
-    } finally { setAiLoading(false); }
+      await persistTasks([...tasks, newTask]);
+      showToast("Контакт и задача сохранены");
+    } else {
+      showToast("Контакт сохранён");
+    }
+    setQuickAddOpen(false);
+  }
+
+  // --- Таск-борд (Модуль 3B) ---
+  async function handleCreateTask(draft) {
+    const newTask = emptyTask({
+      contactId: draft.contactId,
+      type: draft.type || "follow_up",
+      title: draft.title.trim(),
+      dueDate: draft.dueDate || null,
+    });
+    await persistTasks([...tasks, newTask]);
+    showToast("Задача создана");
+  }
+  async function handleUpdateTaskStatus(taskId, newStatus) {
+    const next = tasks.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t));
+    await persistTasks(next);
+  }
+  async function handleDeleteTask(taskId) {
+    const next = tasks.filter((t) => t.id !== taskId);
+    await persistTasks(next);
+    showToast("Задача удалена");
+  }
+
+  // --- Цели (Модуль 3D) ---
+  async function handleCreateGoal(draft) {
+    await persistGoals([...goals, emptyGoal(draft)]);
+    showToast("Цель создана");
+  }
+  async function handleToggleQualDone(goalId) {
+    const next = goals.map((g) => (g.id === goalId ? { ...g, status: g.status === "done" ? "in_progress" : "done" } : g));
+    await persistGoals(next);
+  }
+  async function handleDeleteGoal(goalId) {
+    await persistGoals(goals.filter((g) => g.id !== goalId));
+    showToast("Цель удалена");
+  }
+
+  // --- Подписка / лимит AI-запросов (Модуль 3D) ---
+  // Реального биллинга здесь нет (см. Profile.jsx) — это только контроль
+  // лимита, чтобы демо-режим free-плана имел смысл в интерфейсе.
+  const canUseAi = subscription.plan === "pro" || subscription.aiRequestsUsed < subscription.aiRequestsLimit;
+  const remainingAi = subscription.plan === "pro" ? Infinity : Math.max(0, subscription.aiRequestsLimit - subscription.aiRequestsUsed);
+  async function recordAiUsage() {
+    if (subscription.plan === "pro") return;
+    await persistSubscription({ ...subscription, aiRequestsUsed: subscription.aiRequestsUsed + 1 });
+  }
+  async function handleActivateDemoPro() {
+    await persistSubscription({ ...subscription, plan: "pro" });
+    showToast("Pro активирован в демо-режиме");
+    setProfileOpen(false);
+  }
+  async function handleDowngradeToFree() {
+    await persistSubscription({ ...emptySubscription(), aiRequestsUsed: 0 });
+    showToast("Возвращено на Free Trial");
   }
 
   const avatarStack = contacts.slice(0, 4);
   const lastContact = contacts.length > 0 ? [...contacts].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0] : null;
+  const activeGoal = goals.find((g) => g.status !== "done") || null;
 
   return (
     <div style={styles.app}>
@@ -414,6 +361,22 @@ export default function ForPeople() {
             <div style={styles.navLeft}>Contacts</div>
             <div style={styles.navCenterLogo}>FOR PEOPLE</div>
             <div style={styles.topActions}>
+              <button className="fp-btn" style={styles.iconBtn} onClick={() => setProfileOpen(true)} aria-label="Личный кабинет">
+                <CreditCard size={15} strokeWidth={2.25} />
+                {subscription.plan === "pro" && <span style={{ ...styles.iconBtnBadge, background: "#7C4DFF" }}>P</span>}
+              </button>
+              <button className="fp-btn" style={styles.iconBtn} onClick={() => setGoalsOpen(true)} aria-label="Цели">
+                <Target size={15} strokeWidth={2.25} />
+              </button>
+              <button className="fp-btn" style={styles.iconBtn} onClick={() => setHealthCheckOpen(true)} aria-label="Оценить окружение">
+                <Gauge size={15} strokeWidth={2.25} />
+              </button>
+              <button className="fp-btn" style={styles.iconBtn} onClick={() => setTaskBoardOpen(true)} aria-label="Задачи">
+                <ListChecks size={15} strokeWidth={2.25} />
+                {tasks.filter((t) => t.status !== "done").length > 0 && (
+                  <span style={styles.iconBtnBadge}>{tasks.filter((t) => t.status !== "done").length}</span>
+                )}
+              </button>
               <button className="fp-btn" style={styles.iconBtn} onClick={() => setAiOpen(true)} aria-label="AI помощник"><Sparkles size={15} strokeWidth={2.25} /></button>
               <button className="fp-btn" style={styles.iconBtn} onClick={() => setImportOpen(true)} aria-label="Импорт"><Upload size={15} strokeWidth={2.25} /></button>
               <button className="fp-btn" style={styles.iconBtn} onClick={exportCsv} aria-label="Экспорт"><Download size={15} strokeWidth={2.25} /></button>
@@ -501,6 +464,19 @@ export default function ForPeople() {
             </div>
           </div>
 
+          {activeGoal && (
+            <button className="fp-btn" style={styles.goalStripCard} onClick={() => setGoalsOpen(true)}>
+              <div style={styles.goalStripIcon}><Target size={15} color="#7C4DFF" /></div>
+              <div style={styles.goalStripBody}>
+                <div style={styles.goalStripTitle}>{activeGoal.title}</div>
+                <div style={styles.goalStripTrack}>
+                  <div style={{ ...styles.goalStripFill, width: `${computeGoalProgress(activeGoal, contacts).pct}%` }} />
+                </div>
+              </div>
+              <span style={styles.goalStripPct}>{computeGoalProgress(activeGoal, contacts).pct}%</span>
+            </button>
+          )}
+
           <div style={styles.searchBar}>
             <Search size={16} color="rgba(11,11,16,0.4)" style={{ flexShrink: 0 }} />
             <input style={styles.searchInput} placeholder="Имя, телефон, ник, тег…" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -526,35 +502,16 @@ export default function ForPeople() {
             </div>
           ) : (
             <div style={styles.grid}>
-              {filtered.map((c, i) => {
-                const isSelected = selectedIds.has(c.id);
-                return (
-                  <button key={c.id} className="fp-card" style={{ ...styles.card, animationDelay: `${Math.min(i * 30, 300)}ms` }} onClick={() => handleCardClick(c)}>
-                    {selectMode && (
-                      <div style={{ ...styles.selectCheck, ...(isSelected ? styles.selectCheckActive : {}) }}>
-                        {isSelected && <Check size={12} color="#fff" strokeWidth={3} />}
-                      </div>
-                    )}
-                    <div style={styles.cardTopRow}>
-                      <span style={styles.cardIndex}>{pad(i + 1)}</span>
-                      {!selectMode && <ArrowUpRight size={15} color="rgba(11,11,16,0.3)" strokeWidth={2.25} />}
-                    </div>
-                    <div style={styles.avatarBubble}>{c.avatar ? <img src={c.avatar} alt="" style={styles.avatarImg} /> : initials(c)}</div>
-                    <div style={styles.cardName}>{c.firstName} {c.lastName}</div>
-                    {c.job && <div style={styles.cardJob}>{c.job}</div>}
-                    {c.phone && <div style={styles.cardPhone}>{c.phone}</div>}
-                    {c.category && <div style={styles.cardCategory}>{c.category}</div>}
-                    <div style={styles.cardBadgeRow}>
-                      {MESSENGERS.filter((m) => c.messengers?.[m.key]?.enabled).map((m) => (
-                        <span key={m.key} style={{ ...styles.msgBadge, background: `${m.color}18`, color: m.color }}>{m.short}</span>
-                      ))}
-                    </div>
-                    {c.tags && c.tags.length > 0 && (
-                      <div style={styles.cardBadgeRow}>{c.tags.slice(0, 3).map((t) => <span key={t} style={styles.tagBadge}>#{t}</span>)}</div>
-                    )}
-                  </button>
-                );
-              })}
+              {filtered.map((c, i) => (
+                <ContactCard
+                  key={c.id}
+                  contact={c}
+                  index={i}
+                  selectMode={selectMode}
+                  isSelected={selectedIds.has(c.id)}
+                  onClick={handleCardClick}
+                />
+              ))}
               {!selectMode && (
                 <button className="fp-card" style={styles.addCard} onClick={startNew}>
                   <Plus size={22} color="#7C4DFF" strokeWidth={1.75} />
@@ -567,7 +524,12 @@ export default function ForPeople() {
       </div>
 
       {!selectMode && (
-        <button className="fp-fab" style={styles.fab} onClick={startNew} aria-label="Добавить"><Plus size={22} color="#fff" strokeWidth={2.5} /></button>
+        <>
+          <button className="fp-fab" style={styles.fabSecondary} onClick={() => setQuickAddOpen(true)} aria-label="Быстрое добавление через AI">
+            <Wand2 size={19} color="#fff" strokeWidth={2.25} />
+          </button>
+          <button className="fp-fab" style={styles.fab} onClick={startNew} aria-label="Добавить"><Plus size={22} color="#fff" strokeWidth={2.5} /></button>
+        </>
       )}
 
       {selectMode && selectedIds.size > 0 && (
@@ -726,7 +688,7 @@ export default function ForPeople() {
                   <div style={styles.formGrid}>
                     <Field label="Имя" value={drafting.firstName} onChange={(v) => setDrafting({ ...drafting, firstName: v })} placeholder="Иван" />
                     <Field label="Фамилия" value={drafting.lastName} onChange={(v) => setDrafting({ ...drafting, lastName: v })} placeholder="Петров" />
-                    <Field label="Телефон" value={drafting.phone} onChange={(v) => setDrafting({ ...drafting, phone: v })} placeholder="+7 900 000-00-00" />
+                    <Field label="Телефон" value={drafting.phone} onChange={(v) => setDrafting({ ...drafting, phone: v })} placeholder="+7 (900) 000-00-00" phoneMask />
                     <Field label="Email" value={drafting.email} onChange={(v) => setDrafting({ ...drafting, email: v })} placeholder="mail@example.com" />
                   </div>
                   <div style={styles.sectionLabel}>Категория</div>
@@ -758,9 +720,9 @@ export default function ForPeople() {
                   {MESSENGERS.filter((m) => drafting.messengers[m.key].enabled).map((m) => (
                     <div key={m.key} className="fp-slideup" style={styles.messengerFieldsRow}>
                       <div style={styles.messengerFieldsLabel}>{m.label} — заполните хотя бы одно поле</div>
-                      <div style={{ display: "flex", gap: 8 }}>
+                      <div className="fp-pair-row">
                         <Field label="Ник" value={drafting.messengers[m.key].nick} onChange={(v) => updateMessengerField(m.key, "nick", v)} placeholder="@username" compact />
-                        <Field label="Телефон" value={drafting.messengers[m.key].phone} onChange={(v) => updateMessengerField(m.key, "phone", v)} placeholder="+7 900…" compact />
+                        <Field label="Телефон" value={drafting.messengers[m.key].phone} onChange={(v) => updateMessengerField(m.key, "phone", v)} placeholder="+7 (900) 000…" compact phoneMask />
                       </div>
                     </div>
                   ))}
@@ -833,297 +795,94 @@ export default function ForPeople() {
       )}
 
       {importOpen && (
-        <div className="fp-overlay-anim" style={styles.overlay} onClick={() => { setImportOpen(false); setImportPreview(null); setImportError(""); }}>
-          <div className="fp-sheet-anim" style={styles.formSheet} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.sheetHandle} />
-            <div style={styles.formHeader}>
-              <div style={styles.formTitle}>Импорт из Google</div>
-              <button className="fp-btn" style={styles.closeBtn} onClick={() => { setImportOpen(false); setImportPreview(null); }}><X size={16} color="#0B0B10" /></button>
-            </div>
-            <div style={styles.importHint}>Прямой вход в Google-аккаунт здесь недоступен. Экспортируйте контакты (Google Контакты → Экспорт → формат Google CSV) и загрузите файл ниже.</div>
-            <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={handleFilePicked} style={{ display: "none" }} />
-            <button className="fp-btn" style={styles.uploadZone} onClick={() => fileInputRef.current && fileInputRef.current.click()}>
-              <Upload size={20} color="#7C4DFF" /><span>Выбрать CSV-файл</span>
-            </button>
-            {importError && <div style={styles.importError}>{importError}</div>}
-            {importPreview && (
-              <>
-                <div style={styles.importFound}>Найдено контактов: {importPreview.length}</div>
-                <div style={{ ...styles.detailActions, marginTop: 14 }}>
-                  <button className="fp-btn" style={styles.secondaryPill} onClick={() => setImportPreview(null)}>Отмена</button>
-                  <button className="fp-btn" style={styles.primaryPill} onClick={confirmImport}>Импортировать</button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        <Suspense fallback={<LazyFallback />}>
+          <ImportModal onClose={() => setImportOpen(false)} onImport={handleImportConfirmed} />
+        </Suspense>
       )}
 
       {aiOpen && (
-        <div className="fp-overlay-anim" style={styles.overlay} onClick={() => setAiOpen(false)}>
-          <div className="fp-sheet-anim" style={styles.aiSheet} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.sheetHandle} />
-            <div style={styles.formHeader}>
-              <div style={styles.formTitle}><Sparkles size={16} color="#7C4DFF" style={{ marginRight: 6, verticalAlign: -3 }} />AI помощник</div>
-              <button className="fp-btn" style={styles.closeBtn} onClick={() => setAiOpen(false)}><X size={16} color="#0B0B10" /></button>
-            </div>
-
-            <div ref={aiScrollRef} style={styles.aiScroll}>
-              {aiMessages.length === 0 && (
-                <div style={styles.aiIntro}>
-                  Опишите, что вам нужно — я подберу подходящих людей из вашей книги контактов по интересам, профессии и заметкам.
-                  <div style={{ ...styles.chipWrap, marginTop: 12 }}>
-                    {AI_SUGGESTIONS.map((s) => <button key={s} className="fp-btn" style={styles.pickChip} onClick={() => sendAiQuery(s)}>{s}</button>)}
-                  </div>
-                </div>
-              )}
-              {aiMessages.map((m, i) => (
-                <div key={i} className="fp-msg-in" style={{ ...styles.aiMsgRow, justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-                  <div style={{ ...styles.aiBubble, ...(m.role === "user" ? styles.aiBubbleUser : styles.aiBubbleAi) }}>
-                    {m.text}
-                    {m.matches && m.matches.length > 0 && (
-                      <div style={styles.aiMatchRow}>
-                        {m.matches.map((mc) => (
-                          <button key={mc.id} className="fp-btn" style={styles.aiMatchCard} onClick={() => { setAiOpen(false); setOpenId(mc.id); }}>
-                            <div style={styles.avatarBubbleSmall}>{mc.avatar ? <img src={mc.avatar} alt="" style={styles.avatarImg} /> : initials(mc)}</div>
-                            <div style={styles.aiMatchName}>{mc.firstName} {mc.lastName}</div>
-                            {mc.job && <div style={styles.aiMatchJob}>{mc.job}</div>}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {aiLoading && (
-                <div style={{ ...styles.aiMsgRow, justifyContent: "flex-start" }}>
-                  <div style={{ ...styles.aiBubble, ...styles.aiBubbleAi }} className="fp-pulse">Ищу подходящих людей…</div>
-                </div>
-              )}
-            </div>
-
-            <div style={styles.aiInputRow}>
-              <input style={styles.aiInput} placeholder="Например: я хочу починить машину" value={aiInput} onChange={(e) => setAiInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") sendAiQuery(); }} />
-              <button className="fp-btn" style={styles.aiSendBtn} onClick={() => sendAiQuery()} disabled={aiLoading}><Send size={16} color="#fff" /></button>
-            </div>
-          </div>
-        </div>
+        <Suspense fallback={<LazyFallback />}>
+          <AiAssistantModal
+            contacts={contacts}
+            onClose={() => setAiOpen(false)}
+            onOpenContact={(id) => { setAiOpen(false); setOpenId(id); }}
+            remainingAi={remainingAi}
+            onUseAi={recordAiUsage}
+            onOpenProfile={() => { setAiOpen(false); setProfileOpen(true); }}
+          />
+        </Suspense>
       )}
+
+      {quickAddOpen && (
+        <Suspense fallback={<LazyFallback />}>
+          <QuickAddAI
+            categories={categories}
+            onClose={() => setQuickAddOpen(false)}
+            onCreate={handleQuickAddCreate}
+            remainingAi={remainingAi}
+            onUseAi={recordAiUsage}
+            onOpenProfile={() => { setQuickAddOpen(false); setProfileOpen(true); }}
+          />
+        </Suspense>
+      )}
+
+      {taskBoardOpen && (
+        <Suspense fallback={<LazyFallback />}>
+          <TaskBoard
+            contacts={contacts}
+            tasks={tasks}
+            onClose={() => setTaskBoardOpen(false)}
+            onUpdateTaskStatus={handleUpdateTaskStatus}
+            onDeleteTask={handleDeleteTask}
+            onCreateTask={handleCreateTask}
+            onOpenContact={(id) => { setTaskBoardOpen(false); setOpenId(id); }}
+          />
+        </Suspense>
+      )}
+
+      {healthCheckOpen && (
+        <Suspense fallback={<LazyFallback />}>
+          <HealthCheck
+            contacts={contacts}
+            categories={categories}
+            onClose={() => setHealthCheckOpen(false)}
+            remainingAi={remainingAi}
+            onUseAi={recordAiUsage}
+            onOpenProfile={() => { setHealthCheckOpen(false); setProfileOpen(true); }}
+          />
+        </Suspense>
+      )}
+
+      {goalsOpen && (
+        <Suspense fallback={<LazyFallback />}>
+          <Goals
+            goals={goals}
+            contacts={contacts}
+            categories={categories}
+            tags={tags}
+            onClose={() => setGoalsOpen(false)}
+            onCreateGoal={handleCreateGoal}
+            onToggleQualDone={handleToggleQualDone}
+            onDeleteGoal={handleDeleteGoal}
+          />
+        </Suspense>
+      )}
+
+      {profileOpen && (
+        <Suspense fallback={<LazyFallback />}>
+          <Profile
+            subscription={subscription}
+            onClose={() => setProfileOpen(false)}
+            onActivateDemoPro={handleActivateDemoPro}
+            onDowngradeToFree={handleDowngradeToFree}
+          />
+        </Suspense>
+      )}
+
+      <div style={styles.versionTag}>for people · v1.2.0</div>
 
       {toast && <div className="fp-slideup" style={styles.toast}>{toast}</div>}
     </div>
   );
 }
 
-function PsychRow({ label, value }) {
-  return (<div style={styles.psychRow}><div style={styles.psychLabel}>{label}</div><div style={styles.psychValue}>{value}</div></div>);
-}
-
-function Field({ label, value, onChange, placeholder, textarea, compact }) {
-  return (
-    <label style={{ ...styles.fieldWrap, flex: compact ? 1 : undefined }}>
-      {label && <span style={styles.fieldLabel}>{label}</span>}
-      {textarea ? (
-        <textarea style={{ ...styles.fieldInput, height: 62, resize: "none", fontFamily: "inherit" }} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
-      ) : (
-        <input style={styles.fieldInput} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
-      )}
-    </label>
-  );
-}
-
-function InlineAdd({ placeholder, onAdd }) {
-  const [v, setV] = useState("");
-  return (
-    <div style={styles.inlineAddRow}>
-      <input style={styles.inlineAddInput} value={v} onChange={(e) => setV(e.target.value)} placeholder={placeholder} onKeyDown={(e) => { if (e.key === "Enter" && v.trim()) { onAdd(v); setV(""); } }} />
-      <button className="fp-btn" style={styles.inlineAddBtn} onClick={() => { if (v.trim()) { onAdd(v); setV(""); } }}><Plus size={14} color="#0B0B10" /></button>
-    </div>
-  );
-}
-
-const globalCss = `
-  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,600&family=Inter:wght@400;500;600;700&display=swap');
-  @keyframes fpFadeIn { from{opacity:0} to{opacity:1} }
-  @keyframes fpSlideUp { from{opacity:0; transform:translateY(26px)} to{opacity:1; transform:translateY(0)} }
-  @keyframes fpStepIn { from{opacity:0; transform:translateX(16px)} to{opacity:1; transform:translateX(0)} }
-  @keyframes fpCardIn { from{opacity:0; transform:translateY(10px) scale(0.96)} to{opacity:1; transform:translateY(0) scale(1)} }
-  @keyframes fpPulse { 0%,100%{opacity:0.55} 50%{opacity:1} }
-  .fp-overlay-anim { animation: fpFadeIn .18s ease; }
-  .fp-sheet-anim { animation: fpSlideUp .3s cubic-bezier(.2,.8,.2,1); }
-  .fp-step-anim { animation: fpStepIn .22s ease; }
-  .fp-slideup { animation: fpSlideUp .25s ease; }
-  .fp-msg-in { animation: fpSlideUp .22s ease; display:flex; }
-  .fp-card { transition: transform .15s ease, box-shadow .15s ease; animation: fpCardIn .3s ease both; cursor:pointer; }
-  .fp-card:active { transform: scale(0.96); }
-  .fp-btn { transition: transform .12s ease, opacity .12s ease; cursor:pointer; }
-  .fp-btn:active { transform: scale(0.94); }
-  .fp-fab { transition: transform .15s ease; }
-  .fp-fab:active { transform: scale(0.9); }
-  .fp-pulse { animation: fpPulse 1.2s ease-in-out infinite; }
-`;
-
-const INK = "#0B0B10";
-const MUTED = "rgba(11,11,16,0.55)";
-const PURPLE = "#7C4DFF";
-const PURPLE_SOFT = "#EDE7FE";
-const BG = "#FBFAFC";
-const CARD_BORDER = "1px solid rgba(11,11,16,0.08)";
-const SHEET_BG = "#FFFFFF";
-const CARD_SHADOW = "0 4px 18px rgba(20,10,50,0.06)";
-
-const styles = {
-  app: { minHeight: "100vh", background: BG, fontFamily: "'Inter', sans-serif", color: INK, position: "relative" },
-  shell: { display: "flex", flexDirection: "column", minHeight: "100vh" },
-  header: { padding: "18px 16px 0" },
-  topBar: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, gap: 8 },
-  navLeft: { fontSize: 11, fontWeight: 600, color: MUTED, letterSpacing: "0.04em", display: "none" },
-  navCenterLogo: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, fontSize: 13, letterSpacing: "0.12em", color: INK },
-  topActions: { display: "flex", alignItems: "center", gap: 7, marginLeft: "auto" },
-  iconBtn: { width: 33, height: 33, borderRadius: 999, background: "#fff", border: CARD_BORDER, display: "flex", alignItems: "center", justifyContent: "center", color: INK, boxShadow: CARD_SHADOW },
-  pillBtnGhost: { background: "#fff", border: CARD_BORDER, color: INK, borderRadius: 999, padding: "8px 14px", fontSize: 12, fontWeight: 700, fontFamily: "'Inter', sans-serif", boxShadow: CARD_SHADOW },
-  pillBtnGhostActive: { background: INK, color: "#fff", border: `1px solid ${INK}` },
-  heroRow: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18, gap: 10 },
-  heroTextBlock: { flex: 1 },
-  heroTextBlockRight: { flex: 1, textAlign: "right" },
-  heroEyebrow: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontStyle: "italic", fontWeight: 600, fontSize: 15, color: INK, marginBottom: 2 },
-  heroTitle: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, fontSize: 38, lineHeight: 0.95, margin: 0, color: PURPLE, letterSpacing: "-0.01em" },
-  statsPanel: { display: "flex", alignItems: "center", background: "#fff", border: CARD_BORDER, borderRadius: 20, padding: "14px 10px", marginBottom: 14, boxShadow: CARD_SHADOW },
-  heroPanel: { position: "relative", overflow: "hidden", background: "linear-gradient(135deg, #9B7FF3 0%, #7C5CE8 100%)", borderRadius: 28, padding: 18, marginBottom: 14, boxShadow: "0 14px 30px rgba(124,77,255,0.28)" },
-  heroPanelGlow1: { position: "absolute", top: -40, right: -30, width: 140, height: 140, borderRadius: "50%", background: "rgba(255,255,255,0.12)", filter: "blur(10px)" },
-  heroPanelGlow2: { position: "absolute", bottom: -50, left: -30, width: 160, height: 160, borderRadius: "50%", background: "rgba(255,255,255,0.08)", filter: "blur(14px)" },
-  heroPanelTop: { position: "relative", zIndex: 1, display: "flex", gap: 14 },
-  heroPanelLeft: { flex: 1.15, display: "flex", flexDirection: "column" },
-  heroPanelBadge: { display: "inline-block", alignSelf: "flex-start", fontSize: 10.5, fontWeight: 700, color: "#fff", background: "rgba(255,255,255,0.18)", borderRadius: 999, padding: "4px 10px", marginBottom: 10 },
-  heroPanelHeading: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 19, lineHeight: 1.2, color: "#fff", marginBottom: 8 },
-  heroPanelDesc: { fontSize: 12, lineHeight: 1.5, color: "rgba(255,255,255,0.85)", marginBottom: 14 },
-  exploreBtn: { alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 8, background: INK, color: "#fff", border: "none", borderRadius: 999, padding: "9px 8px 9px 16px", fontSize: 12.5, fontWeight: 700, fontFamily: "'Inter', sans-serif", marginBottom: 14 },
-  exploreBtnCircle: { width: 24, height: 24, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" },
-  heroPanelRight: { flex: 1, display: "flex", flexDirection: "column", gap: 10 },
-  heroStatsRow: { display: "flex", justifyContent: "space-between", gap: 4 },
-  heroStatItem: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 },
-  heroStatIconWrap: { width: 26, height: 26, borderRadius: 9, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 2 },
-  heroStatNum: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, fontSize: 14, color: "#fff" },
-  heroStatLabel: { fontSize: 8.5, color: "rgba(255,255,255,0.8)", fontWeight: 600, textAlign: "center" },
-  featuredLabel: { fontSize: 10.5, fontWeight: 700, color: "rgba(255,255,255,0.85)", marginTop: 4 },
-  featuredCard: { background: "#fff", borderRadius: 18, padding: 12, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 3, boxShadow: "0 8px 20px rgba(20,10,60,0.18)", textAlign: "left" },
-  featuredAvatar: { width: 34, height: 34, borderRadius: 11, background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 13, color: PURPLE, overflow: "hidden", marginBottom: 2 },
-  featuredName: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 12.5, color: INK },
-  featuredSub: { fontSize: 10, color: MUTED },
-  featuredBtn: { display: "flex", alignItems: "center", gap: 4, background: PURPLE, color: "#fff", borderRadius: 999, padding: "5px 10px", fontSize: 10, fontWeight: 700, marginTop: 4 },
-  statItem: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 },
-  statIconWrap: { width: 26, height: 26, borderRadius: 9, background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 2 },
-  statNum: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, fontSize: 17, color: INK },
-  statLabel: { fontSize: 10, color: MUTED, fontWeight: 500 },
-  statDivider: { width: 1, height: 30, background: "rgba(11,11,16,0.08)" },
-  socialProofRow: { display: "flex", alignItems: "center", gap: 10, marginBottom: 14 },
-  avatarCluster: { display: "flex", alignItems: "center" },
-  clusterAvatar: { width: 26, height: 26, borderRadius: "50%", background: PURPLE_SOFT, border: "2px solid #FBFAFC", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9.5, fontWeight: 700, color: PURPLE, overflow: "hidden", fontFamily: "'Plus Jakarta Sans', sans-serif" },
-  socialProofText: { fontSize: 11.5, color: MUTED, fontWeight: 500 },
-  searchBar: { display: "flex", alignItems: "center", gap: 9, background: "#fff", border: CARD_BORDER, borderRadius: 999, padding: "13px 16px", marginBottom: 14, boxShadow: CARD_SHADOW },
-  searchInput: { flex: 1, background: "transparent", border: "none", outline: "none", color: INK, fontSize: 14, fontFamily: "'Inter', sans-serif" },
-  clearBtn: { background: "none", border: "none", padding: 2 },
-  categoryRow: { display: "flex", gap: 7, overflowX: "auto", paddingBottom: 4 },
-  categoryChip: { flexShrink: 0, background: "#fff", border: CARD_BORDER, color: MUTED, borderRadius: 999, padding: "7px 14px", fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif" },
-  categoryChipActive: { background: INK, color: "#fff", border: `1px solid ${INK}` },
-  main: { flex: 1, padding: "8px 16px 110px" },
-  emptyState: { height: "50vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, textAlign: "center" },
-  emptyIconWrap: { width: 56, height: 56, borderRadius: "50%", background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 6 },
-  emptyTitle: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 16, fontWeight: 700, color: INK },
-  emptyHint: { fontSize: 12.5, color: MUTED },
-  emptyHintSmall: { fontSize: 11.5, color: MUTED, marginTop: 4 },
-  grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(155px, 1fr))", gap: 10 },
-  card: { position: "relative", background: "#fff", border: CARD_BORDER, borderRadius: 22, padding: 14, textAlign: "left", display: "flex", flexDirection: "column", gap: 7, fontFamily: "'Inter', sans-serif", boxShadow: CARD_SHADOW },
-  selectCheck: { position: "absolute", top: 10, right: 10, width: 20, height: 20, borderRadius: "50%", border: "1.5px solid rgba(11,11,16,0.25)", display: "flex", alignItems: "center", justifyContent: "center" },
-  selectCheckActive: { background: PURPLE, border: `1.5px solid ${PURPLE}` },
-  cardTopRow: { display: "flex", justifyContent: "space-between", alignItems: "center" },
-  cardIndex: { fontSize: 10.5, color: "rgba(11,11,16,0.35)", fontWeight: 600 },
-  avatarBubble: { width: 40, height: 40, borderRadius: 14, background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 15, color: PURPLE, overflow: "hidden" },
-  avatarBubbleSmall: { width: 30, height: 30, borderRadius: 10, background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 12, color: PURPLE, overflow: "hidden", marginBottom: 4 },
-  avatarImg: { width: "100%", height: "100%", objectFit: "cover" },
-  cardName: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 14.5, lineHeight: 1.2, color: INK },
-  cardJob: { fontSize: 10.5, color: MUTED },
-  cardPhone: { fontSize: 11.5, color: MUTED },
-  cardCategory: { fontSize: 10, fontWeight: 700, color: PURPLE, alignSelf: "flex-start", background: PURPLE_SOFT, borderRadius: 999, padding: "2px 8px" },
-  cardBadgeRow: { display: "flex", gap: 5, flexWrap: "wrap" },
-  msgBadge: { fontSize: 9.5, fontWeight: 700, padding: "3px 7px", borderRadius: 999 },
-  tagBadge: { fontSize: 9.5, fontWeight: 600, padding: "3px 7px", borderRadius: 999, background: "rgba(11,11,16,0.06)", color: MUTED },
-  addCard: { background: "transparent", border: "1.5px dashed rgba(124,77,255,0.35)", borderRadius: 22, minHeight: 150, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 },
-  addCardLabel: { fontSize: 11.5, fontWeight: 600, color: PURPLE, textAlign: "center" },
-  fab: { position: "fixed", bottom: 22, right: 20, width: 56, height: 56, borderRadius: "50%", background: INK, border: "none", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 10px 26px rgba(11,11,16,0.3)", zIndex: 40 },
-  bulkBar: { position: "fixed", bottom: 20, left: 16, right: 16, background: INK, borderRadius: 20, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", zIndex: 45, boxShadow: "0 10px 30px rgba(0,0,0,0.25)" },
-  bulkCount: { fontSize: 12.5, fontWeight: 700, color: "#fff" },
-  bulkActions: { display: "flex", gap: 8 },
-  bulkBtn: { display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 999, padding: "7px 11px", fontSize: 11.5, fontWeight: 600, color: "#fff" },
-  overlay: { position: "fixed", inset: 0, background: "rgba(11,11,16,0.45)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 50, overscrollBehavior: "contain", touchAction: "none" },
-  popoverSheet: { width: "100%", maxWidth: 480, background: SHEET_BG, borderRadius: "26px 26px 0 0", padding: "22px 20px 26px", border: "1px solid rgba(11,11,16,0.08)", borderBottom: "none", overscrollBehavior: "contain" },
-  popoverTitle: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 16, marginBottom: 14, color: INK },
-  chipWrap: { display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 10 },
-  pickChip: { background: "#fff", border: CARD_BORDER, color: INK, borderRadius: 999, padding: "8px 14px", fontSize: 12.5, fontWeight: 600 },
-  pickChipSmall: { background: "#fff", border: CARD_BORDER, color: INK, borderRadius: 999, padding: "7px 13px", fontSize: 12.5, fontWeight: 600, minWidth: 38 },
-  pickChipActive: { background: PURPLE, color: "#fff", border: `1px solid ${PURPLE}` },
-  inlineAddRow: { display: "flex", gap: 8, marginBottom: 6 },
-  inlineAddInput: { flex: 1, background: "#F5F3FA", border: CARD_BORDER, borderRadius: 999, padding: "9px 14px", color: INK, fontSize: 13, outline: "none" },
-  inlineAddBtn: { width: 36, height: 36, borderRadius: "50%", background: "#F5F3FA", border: CARD_BORDER, display: "flex", alignItems: "center", justifyContent: "center" },
-  confirmSheet: { width: "100%", maxWidth: 480, background: SHEET_BG, borderRadius: "26px 26px 0 0", padding: "24px 20px 26px", border: "1px solid rgba(11,11,16,0.08)", borderBottom: "none", overscrollBehavior: "contain" },
-  confirmTitle: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 17, marginBottom: 4, color: INK },
-  confirmHint: { fontSize: 12.5, color: MUTED, marginBottom: 18 },
-  detailActions: { display: "flex", gap: 10 },
-  primaryPill: { flex: 1, background: INK, color: "#fff", border: "none", borderRadius: 999, padding: "13px 0", fontSize: 14, fontWeight: 700, fontFamily: "'Inter', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 },
-  secondaryPill: { flex: 1, background: "#fff", color: INK, border: CARD_BORDER, borderRadius: 999, padding: "13px 0", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "'Inter', sans-serif" },
-  dangerPill: { flex: 1, background: "#E5484D", color: "#fff", border: "none", borderRadius: 999, padding: "13px 0", fontSize: 14, fontWeight: 700, fontFamily: "'Inter', sans-serif" },
-  sheet: { position: "relative", width: "100%", maxWidth: 480, background: SHEET_BG, borderRadius: "28px 28px 0 0", padding: "26px 20px 24px", maxHeight: "88vh", overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", fontFamily: "'Inter', sans-serif", border: "1px solid rgba(11,11,16,0.08)", borderBottom: "none" },
-  formSheet: { position: "relative", width: "100%", maxWidth: 480, background: SHEET_BG, borderRadius: "28px 28px 0 0", padding: "26px 20px 24px", maxHeight: "90vh", overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", fontFamily: "'Inter', sans-serif", border: "1px solid rgba(11,11,16,0.08)", borderBottom: "none" },
-  sheetHandle: { position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", width: 36, height: 4, borderRadius: 2, background: "rgba(11,11,16,0.15)" },
-  closeBtn: { position: "absolute", top: 16, right: 16, background: "#F5F3FA", border: CARD_BORDER, borderRadius: "50%", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center" },
-  avatarBubbleBig: { width: 64, height: 64, borderRadius: 20, background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 22, color: PURPLE, marginBottom: 10, overflow: "hidden" },
-  avatarImgBig: { width: "100%", height: "100%", objectFit: "cover", borderRadius: 20 },
-  detailName: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 22, marginBottom: 2, color: INK },
-  detailSub: { fontSize: 12.5, color: MUTED, marginBottom: 6 },
-  detailCategoryTag: { display: "inline-block", fontSize: 11, fontWeight: 700, color: PURPLE, background: PURPLE_SOFT, borderRadius: 999, padding: "4px 11px", marginBottom: 4 },
-  sectionLabel: { fontSize: 11, fontWeight: 700, letterSpacing: "0.03em", textTransform: "uppercase", color: MUTED, margin: "18px 0 10px" },
-  detailFields: { display: "flex", flexDirection: "column", gap: 12 },
-  detailField: { display: "flex", alignItems: "center", gap: 10 },
-  detailLink: { color: INK, fontSize: 14.5, textDecoration: "none", fontWeight: 500 },
-  detailText: { color: INK, fontSize: 14 },
-  detailHint: { fontSize: 13, color: MUTED },
-  detailNote: { background: "#F5F3FA", border: CARD_BORDER, borderRadius: 16, padding: "12px 14px", fontSize: 13.5, lineHeight: 1.5, color: INK },
-  psychBlock: { background: PURPLE_SOFT, border: "1px solid rgba(124,77,255,0.22)", borderRadius: 18, padding: "6px 14px" },
-  psychRow: { padding: "10px 0", borderBottom: "1px solid rgba(124,77,255,0.15)" },
-  psychLabel: { fontSize: 10.5, fontWeight: 700, color: "#8A6FE0", marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.02em" },
-  psychValue: { fontSize: 13.5, color: INK, lineHeight: 1.45 },
-  psychFormBlock: { background: PURPLE_SOFT, border: "1px solid rgba(124,77,255,0.22)", borderRadius: 18, padding: 14, display: "flex", flexDirection: "column", gap: 12 },
-  formHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 },
-  formTitle: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 18, display: "flex", alignItems: "center", color: INK },
-  stepTabs: { display: "flex", gap: 6, marginTop: 16, marginBottom: 6, overflowX: "auto" },
-  stepTab: { flexShrink: 0, background: "#F5F3FA", border: CARD_BORDER, color: MUTED, borderRadius: 999, padding: "7px 13px", fontSize: 11.5, fontWeight: 600 },
-  stepTabActive: { background: INK, color: "#fff", border: `1px solid ${INK}` },
-  avatarRow: { display: "flex", alignItems: "center", gap: 14, marginTop: 12, marginBottom: 6 },
-  avatarPicker: { width: 64, height: 64, borderRadius: 20, background: PURPLE_SOFT, border: "1.5px dashed rgba(124,77,255,0.4)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 },
-  avatarHint: { fontSize: 12, color: MUTED, lineHeight: 1.4 },
-  formGrid: { display: "flex", flexDirection: "column", gap: 10 },
-  fieldWrap: { display: "flex", flexDirection: "column", gap: 5, marginBottom: 4 },
-  fieldLabel: { fontSize: 10.5, fontWeight: 700, color: MUTED, letterSpacing: "0.02em" },
-  fieldInput: { background: "#F5F3FA", border: CARD_BORDER, borderRadius: 14, padding: "10px 13px", fontSize: 14, color: INK, outline: "none", fontFamily: "'Inter', sans-serif" },
-  messengerFieldsRow: { background: "#F5F3FA", borderRadius: 16, padding: 12, marginBottom: 4, marginTop: 10, display: "flex", flexDirection: "column", gap: 8 },
-  messengerFieldsLabel: { fontSize: 10.5, color: MUTED, fontWeight: 600 },
-  importHint: { fontSize: 12.5, color: MUTED, lineHeight: 1.5, marginBottom: 16, marginTop: 10 },
-  uploadZone: { width: "100%", background: PURPLE_SOFT, border: "1.5px dashed rgba(124,77,255,0.4)", borderRadius: 18, padding: "22px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: PURPLE, fontSize: 13, fontWeight: 600 },
-  importError: { fontSize: 12.5, color: "#E5484D", marginTop: 12 },
-  importFound: { fontSize: 13, fontWeight: 700, marginTop: 16, color: INK },
-  aiSheet: { position: "relative", width: "100%", maxWidth: 480, background: SHEET_BG, borderRadius: "28px 28px 0 0", padding: "26px 20px 16px", height: "82vh", display: "flex", flexDirection: "column", fontFamily: "'Inter', sans-serif", border: "1px solid rgba(11,11,16,0.08)", borderBottom: "none", overscrollBehavior: "contain" },
-  aiScroll: { flex: 1, overflowY: "auto", marginTop: 12, display: "flex", flexDirection: "column", gap: 12, paddingBottom: 8, overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" },
-  aiIntro: { fontSize: 13.5, color: MUTED, lineHeight: 1.6, background: "#F5F3FA", borderRadius: 16, padding: 14 },
-  aiMsgRow: { display: "flex" },
-  aiBubble: { maxWidth: "85%", borderRadius: 18, padding: "11px 15px", fontSize: 13.5, lineHeight: 1.5 },
-  aiBubbleUser: { background: INK, color: "#fff", fontWeight: 500, borderBottomRightRadius: 6 },
-  aiBubbleAi: { background: "#F5F3FA", color: INK, border: CARD_BORDER, borderBottomLeftRadius: 6 },
-  aiMatchRow: { display: "flex", gap: 8, overflowX: "auto", marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(11,11,16,0.1)" },
-  aiMatchCard: { flexShrink: 0, width: 88, background: "#fff", border: CARD_BORDER, borderRadius: 14, padding: 8, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" },
-  aiMatchName: { fontSize: 10.5, fontWeight: 700, color: INK, lineHeight: 1.2 },
-  aiMatchJob: { fontSize: 9, color: MUTED, marginTop: 2 },
-  aiInputRow: { display: "flex", gap: 8, paddingTop: 12, borderTop: "1px solid rgba(11,11,16,0.08)" },
-  aiInput: { flex: 1, background: "#F5F3FA", border: CARD_BORDER, borderRadius: 999, padding: "11px 16px", color: INK, fontSize: 13.5, outline: "none" },
-  aiSendBtn: { width: 40, height: 40, borderRadius: "50%", background: PURPLE, border: "none", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  toast: { position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)", background: INK, color: "#fff", padding: "10px 18px", borderRadius: 999, fontSize: 13, fontWeight: 600, boxShadow: "0 8px 24px rgba(0,0,0,0.25)", zIndex: 60 },
-};

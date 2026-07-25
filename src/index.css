@@ -1,0 +1,40 @@
+/* index.css — глобальный сброс */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  /* Резервируем место под скроллбар всегда, чтобы при overflow:hidden
+     (открытие модалок) контент не «прыгал» вправо/влево на ширину скроллбара */
+  scrollbar-gutter: stable;
+}
+
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Убираем стандартную прямоугольную обводку/highlight на тач-устройствах,
+   но оставляем её для клавиатурной навигации (доступность) */
+button, a, input, textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus {
+  outline: none;
+}
+button:focus-visible {
+  outline: 2px solid #7C4DFF;
+  outline-offset: 2px;
+}
+
+button {
+  font-family: inherit;
+}
