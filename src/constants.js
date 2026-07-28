@@ -65,10 +65,15 @@ const PRO_PRICE_LABEL = "990 ₽/мес";
 // показывается пользователю на витрине (should совпадать с суммой на бэке).
 const PRO_PRICE_STARS = 599;
 const PRO_PRICE_STARS_OLD = 1999;
+// Карта и СБП временно отключены (заготовка интерфейса без реальной
+// интеграции с платёжным провайдером) — оставлен единственный реально
+// подключённый способ оплаты, Telegram Stars (см. api/create-stars-invoice.js).
+// Чтобы вернуть карту/СБП обратно, достаточно раскомментировать строки ниже —
+// остальной код (Profile.jsx) их поддерживает как есть.
 const PAYMENT_METHODS = [
   { key: "stars", label: "⭐ Telegram Stars" },
-  { key: "card", label: "Карта" },
-  { key: "sbp", label: "СБП" },
+  // { key: "card", label: "Карта" },
+  // { key: "sbp", label: "СБП" },
 ];
 
 export { MESSENGERS, DEFAULT_CATEGORIES, ENERGY_OPTIONS, TRUST_OPTIONS, STEP_DEFS, AI_SUGGESTIONS, TASK_TYPES, TASK_TYPE_COLORS, DEFAULT_TASK_TYPES, TASK_TYPE_PALETTE, STATUS_COLUMNS, PLAN_FEATURES, PRO_PRICE_LABEL, PRO_PRICE_STARS, PRO_PRICE_STARS_OLD, PAYMENT_METHODS };
