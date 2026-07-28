@@ -86,6 +86,7 @@ export default function QuickAddAI({ categories, onClose, onCreate, remainingAi 
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.error || "proxy error");
 
+      const aiComment = sanitizeAiText(data.comment);
       setParsed({
         firstName: sanitizeAiText(data.firstName),
         lastName: sanitizeAiText(data.lastName),
@@ -94,7 +95,14 @@ export default function QuickAddAI({ categories, onClose, onCreate, remainingAi 
         job: sanitizeAiText(data.job),
         interests: sanitizeAiText(data.interests),
         helpWith: sanitizeAiText(data.helpWith),
-        comment: sanitizeAiText(data.comment) || q,
+        // Заметка — то, что реально можно редактировать в поле; если AI не
+        // смог её сформулировать, поле остаётся пустым (пользователь сам
+        // впишет короткую заметку), а не молча заполняется исходным
+        // текстом целиком — длинный текст показывается отдельным,
+        // нередактируемым блоком ниже (originalText), чтобы не смешивать
+        // системные/исходные данные с полем пользовательского ввода.
+        comment: aiComment,
+        originalText: aiComment ? "" : q,
         task: data.task && data.task.title ? {
           title: sanitizeAiText(data.task.title),
           type: TASK_TYPES.some((t) => t.key === data.task.type) ? data.task.type : "follow_up",
@@ -115,7 +123,9 @@ export default function QuickAddAI({ categories, onClose, onCreate, remainingAi 
 
   function handleConfirm() {
     if (!parsed) return;
-    onCreate(parsed);
+    const { originalText, ...rest } = parsed;
+    const comment = rest.comment.trim() || originalText || "";
+    onCreate({ ...rest, comment });
   }
 
   return (
@@ -211,8 +221,27 @@ export default function QuickAddAI({ categories, onClose, onCreate, remainingAi 
             </label>
             <label style={styles.fieldWrap}>
               <span style={styles.fieldLabel}>Заметка</span>
-              <textarea style={{ ...styles.fieldInput, height: 62, resize: "none" }} value={parsed.comment} onChange={(e) => updateParsed({ comment: e.target.value })} />
+              <textarea
+                style={{ ...styles.fieldInput, height: 62, resize: "none" }}
+                value={parsed.comment}
+                onChange={(e) => updateParsed({ comment: e.target.value })}
+                placeholder="Коротко о знакомстве — своими словами"
+              />
             </label>
+
+            {parsed.originalText && (
+              <div style={styles.originalTextCard}>
+                <div style={styles.originalTextLabel}>AI не смог коротко сформулировать заметку — вот ваш исходный текст, скопируйте нужное вручную:</div>
+                <div style={styles.originalTextBody}>{parsed.originalText}</div>
+                <button
+                  className="fp-btn"
+                  style={styles.originalTextUseBtn}
+                  onClick={() => updateParsed({ comment: parsed.originalText, originalText: "" })}
+                >
+                  Использовать как заметку
+                </button>
+              </div>
+            )}
 
             {parsed.task && (
               <>
