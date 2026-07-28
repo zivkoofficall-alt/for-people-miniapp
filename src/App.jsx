@@ -971,6 +971,16 @@ export default function ForPeople() {
                 openContact.messengers?.vk?.enabled && openContact.messengers.vk.nick && { key: "vk", label: "VK" },
                 openContact.messengers?.line?.enabled && openContact.messengers.line.nick && { key: "line", label: "LINE" },
               ].filter(Boolean);
+              // Порядок в methods (для отображения чипов) НЕ совпадает с
+              // приоритетом фолбэка внутри buildContactLink (там telegram →
+              // whatsapp → vk → line → phone). Раньше дефолтным активным
+              // чипом при пустом preferredContact считался methods[0].key —
+              // почти всегда "phone", из-за чего "Позвонить" подсвечивался
+              // активным даже когда реальная ссылка/кнопка сверху вела в
+              // мессенджер. Берём дефолт из уже посчитанного link, чтобы
+              // подсветка совпадала с тем, что реально произойдёт по клику.
+              const linkLabelToKey = { "Позвонить": "phone", Telegram: "telegram", WhatsApp: "whatsapp", VK: "vk", LINE: "line" };
+              const defaultKey = (link && linkLabelToKey[link.label]) || methods[0]?.key;
               return (
                 <>
                   {link && (
@@ -986,7 +996,7 @@ export default function ForPeople() {
                           <button
                             key={m.key}
                             className="fp-btn"
-                            style={{ ...styles.pickChipSmall, ...((openContact.preferredContact || methods[0].key) === m.key ? styles.pickChipActive : {}) }}
+                            style={{ ...styles.pickChipSmall, ...((openContact.preferredContact || defaultKey) === m.key ? styles.pickChipActive : {}) }}
                             onClick={() => handleSetPreferredContact(openContact.id, m.key)}
                           >
                             {m.label}
