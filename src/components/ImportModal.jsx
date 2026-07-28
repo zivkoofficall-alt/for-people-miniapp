@@ -2,6 +2,7 @@ import React, { useState, useRef } from "react";
 import { X, Upload } from "lucide-react";
 import { styles } from "../theme.js";
 import { contactsFromGoogleCsv } from "../helpers.js";
+import { ConfirmModal } from "./Ui.jsx";
 
 // ImportModal — вынесен в отдельный чанк и грузится через React.lazy() из App.jsx.
 // Он открывается редко, поэтому нет смысла тащить его код в основной bundle
@@ -10,6 +11,7 @@ export default function ImportModal({ onClose, onImport }) {
   const [importPreview, setImportPreview] = useState(null);
   const [importError, setImportError] = useState("");
   const [closing, setClosing] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const fileInputRef = useRef(null);
   function handleClose() { setClosing(true); setTimeout(onClose, 180); }
 
@@ -36,6 +38,12 @@ export default function ImportModal({ onClose, onImport }) {
   async function confirmImport() {
     if (!importPreview || importPreview.length === 0) return;
     await onImport(importPreview);
+    setConfirmOpen(false);
+  }
+
+  function handleImportClick() {
+    if (!importPreview || importPreview.length === 0) return;
+    setConfirmOpen(true);
   }
 
   return (
@@ -57,11 +65,20 @@ export default function ImportModal({ onClose, onImport }) {
             <div style={styles.importFound}>Найдено контактов: {importPreview.length}</div>
             <div style={{ ...styles.detailActions, marginTop: 14 }}>
               <button className="fp-btn" style={styles.secondaryPill} onClick={() => setImportPreview(null)}>Отмена</button>
-              <button className="fp-btn" style={styles.primaryPill} onClick={confirmImport}>Импортировать</button>
+              <button className="fp-btn" style={styles.primaryPill} onClick={handleImportClick}>Импортировать</button>
             </div>
           </>
         )}
       </div>
+      <ConfirmModal
+        open={confirmOpen}
+        title={`Загрузить ${importPreview ? importPreview.length : 0} контактов?`}
+        hint="Контакты будут добавлены в вашу книгу контактов. Отменить массовую загрузку после этого можно будет только вручную, по одному контакту."
+        confirmLabel="Загрузить"
+        cancelLabel="Не сейчас"
+        onConfirm={confirmImport}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   );
 }
