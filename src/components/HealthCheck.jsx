@@ -133,7 +133,7 @@ export default function HealthCheck({ contacts, categories, tasks = [], onClose,
     try {
       const proxyUrl = import.meta.env.VITE_AI_PROXY_URL;
       if (!proxyUrl) {
-        setRecError("AI ещё не подключён (VITE_AI_PROXY_URL в .env) — показаны только цифры, без рекомендаций.");
+        setRecError("AI-рекомендации пока недоступны — но цифры выше по-прежнему точные.");
         return;
       }
       const prompt = `Ты аналитик личной CRM "for people". Вот точно посчитанные данные об окружении пользователя (сами цифры уже верны, не пересчитывай их):
