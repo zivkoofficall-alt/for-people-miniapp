@@ -436,17 +436,18 @@ export default function ForPeople() {
     ]);
     const csv = [headers, ...rows].map((r) => r.map(csvEscape).join(",")).join("\n");
 
-    // Три уровня выгрузки, по надёжности:
+    // Два уровня выгрузки, по надёжности:
     // 1) Бэкенд send-csv.js кладёт файл прямо в чат с ботом через Bot API
     //    sendDocument — работает везде, это основной путь внутри Telegram.
-    // 2) Если бэкенд не настроен (нет VITE_SEND_CSV_URL) — внутри Telegram
-    //    пробуем открыть CSV как data:-ссылку через tg.openLink: это выводит
-    //    её в системный браузер устройства, где скачивание файлов работает
-    //    предсказуемо (в отличие от клика по <a download> внутри самого
-    //    WebView Telegram, который на многих клиентах просто ничего не делает
-    //    — из-за чего раньше казалось, что кнопка "не даёт результата").
-    // 3) Вне Telegram (или как последний резерв) — обычное скачивание в
-    //    браузере через Blob + <a download>.
+    // 2) Если бэкенд не настроен (нет VITE_SEND_CSV_URL) или запрос не
+    //    удался — скачивание через Blob + <a download>. Раньше между этими
+    //    двумя уровнями был третий шаг через tg.openLink(dataUrl): Telegram
+    //    Mini Apps не поддерживают data:-ссылки в openLink — вызов не
+    //    бросает исключение, но и не открывает файл, а код всё равно считал
+    //    это успехом (показывал тост и делал return), из-за чего рабочий
+    //    Blob-фолбэк ниже никогда не выполнялся внутри Telegram. Теперь при
+    //    неудаче бэкенда сразу переходим к Blob-скачиванию, которое реально
+    //    срабатывает и в браузере, и в современных Telegram-клиентах.
     const tg = window.Telegram && window.Telegram.WebApp;
     const sendCsvUrl = import.meta.env.VITE_SEND_CSV_URL;
 
@@ -468,22 +469,11 @@ export default function ForPeople() {
       }
     }
 
-    if (tg) {
-      try {
-        const dataUrl = `data:text/csv;charset=utf-8,${encodeURIComponent("\uFEFF" + csv)}`;
-        tg.openLink(dataUrl);
-        showToast(sendCsvUrl ? "Не получилось отправить в чат — открываю файл в браузере" : "Открываю файл в браузере (отправка в чат Telegram не настроена)");
-        return;
-      } catch (e) {
-        console.warn("tg.openLink fallback failed", e);
-      }
-    }
-
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = "for-people.csv";
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-    showToast("Выгружено в CSV");
+    showToast(sendCsvUrl ? "Не получилось отправить в чат — скачиваю файл напрямую" : "Выгружено в CSV");
   }
 
   async function handleImportConfirmed(parsedContacts) {
