@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { X, Sparkles, Send } from "lucide-react";
 import { styles } from "../theme.js";
-import { initials, sanitizeAiText } from "../helpers.js";
+import { initials, sanitizeAiText, contactCategories } from "../helpers.js";
 import { AI_SUGGESTIONS } from "../constants.js";
 
 // AiAssistantModal — вынесен в отдельный чанк (React.lazy в App.jsx).
@@ -28,13 +28,13 @@ export default function AiAssistantModal({ contacts, onClose, onOpenContact, rem
     setAiLoading(true);
     try {
       const compact = contacts.map((c) => ({
-        id: c.id, name: `${c.firstName} ${c.lastName}`.trim(), category: c.category, tags: c.tags,
+        id: c.id, name: `${c.firstName} ${c.lastName}`.trim(), categories: contactCategories(c), tags: c.tags,
         job: c.job, city: c.city, interests: c.interests, helpWith: c.helpWith,
         note: (c.comment || "").slice(0, 140), values: (c.psych?.values || "").slice(0, 140),
       }));
       const prompt = `Ты — помощник личной книги контактов "for people". Твоя задача: понять, что нужно пользователю, и найти среди его контактов тех, кто реально может помочь — даже если формулировка запроса не совпадает дословно с полями контакта.
 
-Контакты пользователя в JSON (поля: id, name, category, tags, job, city, interests, helpWith, note, values):
+Контакты пользователя в JSON (поля: id, name, categories, tags, job, city, interests, helpWith, note, values):
 ${JSON.stringify(compact)}
 
 Запрос пользователя: "${q}"
