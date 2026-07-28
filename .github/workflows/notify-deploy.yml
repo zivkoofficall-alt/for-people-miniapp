@@ -1,0 +1,44 @@
+# .github/workflows/notify-deploy.yml
+#
+# Уведомление в Telegram при каждом успешном деплое — обходной путь для
+# Vercel Free (там нет "родных" account-level вебхуков, это Pro-фича).
+#
+# Как это работает: когда GitHub-интеграция Vercel деплоит проект, она сама
+# создаёт GitHub Deployment и обновляет его статус (pending → success/
+# failure). Это штатное событие GitHub — deployment_status, — оно бесплатно
+# и не требует платного тарифа ни у GitHub, ни у Vercel. Этот workflow
+# реагирует только на state == success и дёргает api/deploy-notify.js,
+# который уже разошлёт сообщение в Telegram всем ADMIN_CHAT_IDS.
+#
+# Настройка (один раз):
+#   1. Замени VERCEL_APP_URL ниже на домен своего проекта, если он другой.
+#   2. В репозитории на GitHub: Settings → Secrets and variables → Actions
+#      → New repository secret → имя DEPLOY_NOTIFY_SECRET, значение — то же
+#      самое, что задано в Vercel Environment Variables (см. README.md).
+#   3. Закоммить этот файл в ветку main — дальше всё само.
+
+name: Notify Telegram on deploy
+
+on:
+  deployment_status
+
+jobs:
+  notify:
+    if: github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_APP_URL: https://for-people-miniapp.vercel.app
+    steps:
+      - name: Ping deploy-notify endpoint
+        run: |
+          curl -sS -X POST \
+            "${VERCEL_APP_URL}/api/deploy-notify?token=${{ secrets.DEPLOY_NOTIFY_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "type": "deployment.succeeded",
+              "project": "for-people-miniapp",
+              "target": "${{ github.event.deployment.environment }}",
+              "url": "${{ github.event.deployment_status.target_url }}",
+              "branch": "${{ github.event.deployment.ref }}",
+              "commit": "${{ github.event.deployment.sha }}"
+            }'
