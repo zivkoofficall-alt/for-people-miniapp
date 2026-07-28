@@ -320,7 +320,7 @@ const styles = {
   // сама карточка едет поверх неё через transform translateX (инлайново).
   taskRowWrap: { position: "relative", borderRadius: 16, overflow: "hidden", marginBottom: 8, background: "#fff" },
   taskRowDeleteBg: { position: "absolute", inset: 0, background: "#E5484D", display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "0 18px", color: "#fff", fontWeight: 700, fontSize: 12, gap: 6 },
-  taskRow: { position: "relative", background: "#fff", border: "1px solid rgba(124,77,255,0.22)", borderRadius: 16, padding: "11px 12px", display: "flex", alignItems: "flex-start", gap: 9, boxShadow: CARD_SHADOW, touchAction: "pan-y" },
+  taskRow: { position: "relative", background: "#fff", borderTop: `3px solid ${PURPLE}`, borderLeft: "1px solid rgba(11,11,16,0.06)", borderRight: "1px solid rgba(11,11,16,0.06)", borderBottom: "1px solid rgba(11,11,16,0.06)", borderRadius: 16, padding: "11px 12px", display: "flex", alignItems: "flex-start", gap: 9, boxShadow: CARD_SHADOW, touchAction: "pan-y" },
   taskRowCheck: { width: 22, height: 22, borderRadius: "50%", border: "2px solid rgba(11,11,16,0.18)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1, background: "#fff" },
   taskRowCheckDone: { background: PURPLE_GRADIENT, border: "2px solid transparent" },
   taskRowAvatar: { width: 26, height: 26, borderRadius: 9, background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 10.5, color: PURPLE, overflow: "hidden", flexShrink: 0, marginTop: 1 },
