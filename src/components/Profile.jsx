@@ -27,7 +27,7 @@ export default function Profile({ subscription, contacts, tasks, onClose, onActi
       return;
     }
     if (!invoiceUrl) {
-      setStarsError("Оплата звёздами ещё не настроена (нет VITE_CREATE_STARS_INVOICE_URL).");
+      setStarsError("Оплата звёздами пока не настроена. Попробуйте позже или выберите другой способ оплаты.");
       return;
     }
     setStarsLoading(true);
