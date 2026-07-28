@@ -145,8 +145,8 @@ export default function Profile({ subscription, contacts, tasks, onClose, onActi
 
           {paymentMethod === "stars" ? (
             <div style={styles.planPriceRow}>
-              <span style={styles.planPriceNew}>⭐ {PRO_PRICE_STARS}</span>
-              <span style={styles.planPriceOld}>⭐ {PRO_PRICE_STARS_OLD}</span>
+              <span style={styles.planPriceNew}><Star size={14} color={PURPLE} fill={PURPLE} style={{ verticalAlign: -2, marginRight: 2 }} /> {PRO_PRICE_STARS}</span>
+              <span style={styles.planPriceOld}><Star size={12} color={PURPLE} fill={PURPLE} style={{ verticalAlign: -1, marginRight: 2 }} /> {PRO_PRICE_STARS_OLD}</span>
               <span style={styles.planDiscountBadge}>−{starsDiscountPct}%</span>
             </div>
           ) : (
@@ -175,8 +175,8 @@ export default function Profile({ subscription, contacts, tasks, onClose, onActi
               {paymentMethod === "stars" ? (
                 <>
                   <button className="fp-btn" style={{ ...styles.primaryPill, width: "100%", marginTop: 8 }} onClick={handleStarsCheckout} disabled={starsLoading}>
-                    {starsLoading ? <Loader2 size={14} className="fp-pulse" /> : <Star size={14} />}
-                    {starsLoading ? "Открываем счёт…" : `Оплатить ${PRO_PRICE_STARS} ⭐`}
+                    {starsLoading ? <Loader2 size={14} className="fp-pulse" /> : <Star size={14} fill="currentColor" />}
+                    {starsLoading ? "Открываем счёт…" : `Оплатить ${PRO_PRICE_STARS}`}
                   </button>
                   {starsError && <div style={styles.importError}>{starsError}</div>}
                 </>
