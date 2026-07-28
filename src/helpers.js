@@ -4,6 +4,16 @@
 
 import { MESSENGERS } from "./constants.js";
 
+// Контакт теперь может состоять сразу в нескольких категориях —
+// c.categories: string[]. Старое поле c.category (строка) больше нигде не
+// пишется, но могло остаться в данных, сохранённых до этого обновления —
+// эта функция читает оба варианта, так что старые контакты не "теряют"
+// категорию после обновления. Использовать везде вместо прямого c.category.
+function contactCategories(c) {
+  if (Array.isArray(c.categories)) return c.categories.filter(Boolean);
+  return c.category && c.category.trim() ? [c.category.trim()] : [];
+}
+
 function emptyMessengers() {
   const m = {};
   MESSENGERS.forEach((x) => { m[x.key] = { enabled: false, nick: "", phone: "" }; });
@@ -76,7 +86,7 @@ function emptyContact() {
     birthday: "",
     interests: "",
     helpWith: "",
-    category: "",
+    categories: [],
     tags: [],
     messengers: emptyMessengers(),
     preferredContact: "", // NEW — предпочтительный способ связи: 'phone'|'telegram'|'whatsapp'|'vk'|'line'
@@ -294,8 +304,9 @@ function computeHealthMetrics(contacts, categories) {
   // --- Разнообразие: сколько из заведённых категорий реально используются ---
   const distMap = {};
   contacts.forEach((c) => {
-    const cat = c.category && c.category.trim() ? c.category.trim() : "Без категории";
-    distMap[cat] = (distMap[cat] || 0) + 1;
+    const cats = contactCategories(c);
+    if (cats.length === 0) { distMap["Без категории"] = (distMap["Без категории"] || 0) + 1; return; }
+    cats.forEach((cat) => { distMap[cat] = (distMap[cat] || 0) + 1; });
   });
   const categoryDistribution = Object.entries(distMap)
     .map(([name, count]) => ({ name, count, pct: Math.round((count / total) * 100) }))
@@ -333,7 +344,7 @@ function computeHealthMetrics(contacts, categories) {
 
   // контакты "с категорией" считаем более приоритетными для follow-up совета
   const staleSorted = [...staleContacts]
-    .sort((a, b) => (a.category ? 0 : 1) - (b.category ? 0 : 1))
+    .sort((a, b) => (contactCategories(a).length ? 0 : 1) - (contactCategories(b).length ? 0 : 1))
     .slice(0, 8);
 
   return { score, status, diversityScore, recencyScore, depthScore, categoryDistribution, gapCategories, staleContacts: staleSorted };
@@ -363,7 +374,7 @@ function computeGoalProgress(goal, contacts) {
     return { current: null, target: null, pct: isDone ? 100 : goal.status === "in_progress" ? 40 : 0, isDone, displayText: isDone ? "Готово" : "В процессе" };
   }
   let current;
-  if (goal.targetCategory) current = contacts.filter((c) => c.category === goal.targetCategory).length;
+  if (goal.targetCategory) current = contacts.filter((c) => contactCategories(c).includes(goal.targetCategory)).length;
   else if (goal.targetTag) current = contacts.filter((c) => (c.tags || []).includes(goal.targetTag)).length;
   else current = goal.manualCount || 0;
   const target = goal.targetCount || 1;
@@ -400,8 +411,7 @@ function computeContactStats(contacts, tasks) {
   // Самая частая категория
   const catMap = {};
   contacts.forEach((c) => {
-    const cat = c.category && c.category.trim();
-    if (cat) catMap[cat] = (catMap[cat] || 0) + 1;
+    contactCategories(c).forEach((cat) => { catMap[cat] = (catMap[cat] || 0) + 1; });
   });
   const topEntry = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0];
 
@@ -432,5 +442,5 @@ export {
   nextRepeatDate, REPEAT_LABELS, initials, pad, formatRuPhone, pluralPeople,
   csvEscape, parseCsv, findColIndex, contactsFromGoogleCsv, resizeImageFile,
   computeHealthMetrics, emptyGoal, computeGoalProgress, emptySubscription, computeContactStats,
-  buildContactLink, isSafeContactUrl, sanitizeAiText, sanitizeAiObject,
+  buildContactLink, isSafeContactUrl, sanitizeAiText, sanitizeAiObject, contactCategories,
 };
