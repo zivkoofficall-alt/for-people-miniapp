@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { storage } from "./storage";
 import { MESSENGERS, DEFAULT_CATEGORIES, ENERGY_OPTIONS, TRUST_OPTIONS, STEP_DEFS, DEFAULT_TASK_TYPES } from "./constants.js";
-import { emptyContact, emptyTask, emptyGoal, emptySubscription, computeGoalProgress, buildContactLink, initials, pluralPeople, csvEscape, resizeImageFile, nextRepeatDate } from "./helpers.js";
+import { emptyContact, emptyTask, emptyGoal, emptySubscription, computeGoalProgress, buildContactLink, initials, pluralPeople, csvEscape, resizeImageFile, nextRepeatDate, contactCategories } from "./helpers.js";
 import { globalCss, INK, PURPLE, styles } from "./theme.js";
 import { PsychRow, Field, InlineAdd, ConfirmModal, SplashScreen } from "./components/Ui.jsx";
 import ContactCard from "./components/ContactCard.jsx";
@@ -238,7 +238,19 @@ export default function ForPeople() {
 
   useEffect(() => {
     (async () => {
-      try { const v = await loadWithLegacyMigration("fp_contacts"); if (v) setContacts(JSON.parse(v)); } catch (e) {}
+      try {
+        const v = await loadWithLegacyMigration("fp_contacts");
+        if (v) {
+          // Контакты, сохранённые до поддержки нескольких категорий, хранят
+          // одну строку в c.category — приводим их к новому массиву
+          // c.categories один раз при загрузке, чтобы весь остальной код
+          // работал с единым форматом и старые данные не "теряли" категорию.
+          const parsedContacts = JSON.parse(v).map((c) =>
+            Array.isArray(c.categories) ? c : { ...c, categories: contactCategories(c) }
+          );
+          setContacts(parsedContacts);
+        }
+      } catch (e) {}
       try { const v2 = await loadWithLegacyMigration("fp_categories"); if (v2) setCategories(JSON.parse(v2)); } catch (e) {}
       try { const v3 = await loadWithLegacyMigration("fp_tags"); if (v3) setTags(JSON.parse(v3)); } catch (e) {}
       try { const v4 = await loadWithLegacyMigration("fp_tasks"); if (v4) setTasks(JSON.parse(v4)); } catch (e) {}
@@ -318,11 +330,11 @@ export default function ForPeople() {
       list = list.filter((c) => {
         const msgHay = MESSENGERS.map((m) => { const d = c.messengers?.[m.key]; return d ? `${d.nick} ${d.phone}` : ""; }).join(" ");
         const hay = [c.firstName, c.lastName, c.phone, c.email, c.job, c.company, c.city, c.interests, c.helpWith,
-          c.comment, c.category, (c.tags || []).join(" "), msgHay].join(" ").toLowerCase();
+          c.comment, contactCategories(c).join(" "), (c.tags || []).join(" "), msgHay].join(" ").toLowerCase();
         return hay.includes(q);
       });
     }
-    if (activeCategory) list = list.filter((c) => c.category === activeCategory);
+    if (activeCategory) list = list.filter((c) => contactCategories(c).includes(activeCategory));
     return [...list].sort((a, b) => (a.lastName || a.firstName || "").localeCompare(b.lastName || b.firstName || "", "ru"));
   }, [contacts, query, activeCategory]);
 
@@ -380,6 +392,13 @@ export default function ForPeople() {
   function toggleDraftTag(t) {
     setDrafting((d) => { const has = d.tags.includes(t); return { ...d, tags: has ? d.tags.filter((x) => x !== t) : [...d.tags, t] }; });
   }
+  function toggleDraftCategory(cat) {
+    setDrafting((d) => {
+      const current = d.categories || [];
+      const has = current.includes(cat);
+      return { ...d, categories: has ? current.filter((x) => x !== cat) : [...current, cat] };
+    });
+  }
   async function addNewCategory(name) { const n = name.trim(); if (!n || categories.includes(n)) return; await persistCategories([...categories, n]); }
   async function addNewTag(name) { const n = name.trim(); if (!n || tags.includes(n)) return; await persistTags([...tags, n]); }
 
@@ -403,10 +422,12 @@ export default function ForPeople() {
     if (selectMode) toggleSelected(id); else setOpenId(id);
   }, [selectMode, toggleSelected]);
 
-  async function bulkSetCategory(cat) {
-    const next = contacts.map((c) => (selectedIds.has(c.id) ? { ...c, category: cat } : c));
+  async function bulkAddCategory(cat) {
+    const next = contacts.map((c) =>
+      selectedIds.has(c.id) ? { ...c, categories: Array.from(new Set([...contactCategories(c), cat])) } : c
+    );
     await persistContacts(next); setBulkPopover(null); setSelectMode(false); setSelectedIds(new Set());
-    showToast(`Категория «${cat}» применена`);
+    showToast(`Категория «${cat}» добавлена`);
   }
   async function bulkApplyTags() {
     if (bulkTagPicks.size === 0) { setBulkPopover(null); return; }
@@ -429,7 +450,7 @@ export default function ForPeople() {
       "Доверие", "Энергия", "Как познакомились", "Последний контакт"];
     const rows = contacts.map((c) => [
       c.firstName, c.lastName, c.phone, c.email, c.job, c.company, c.city, c.birthday, c.interests, c.helpWith,
-      c.category, (c.tags || []).join("; "),
+      contactCategories(c).join("; "), (c.tags || []).join("; "),
       ...MESSENGERS.flatMap((m) => [c.messengers?.[m.key]?.nick || "", c.messengers?.[m.key]?.phone || ""]),
       c.comment, c.psych?.personality || "", c.psych?.values || "", c.psych?.commStyle || "", c.psych?.triggers || "",
       c.psych?.conflictStyle || "", c.psych?.trust || "", c.psych?.energy || "", c.psych?.howMet || "", c.psych?.lastContact || "",
@@ -490,11 +511,12 @@ export default function ForPeople() {
     if (!parsed.firstName.trim() && !parsed.lastName.trim()) {
       showToast("AI не распознал имя — откройте карточку и впишите вручную.");
     }
+    const parsedCategory = (parsed.category || "").trim();
     const newContact = {
       ...emptyContact(),
       firstName: parsed.firstName.trim(),
       lastName: parsed.lastName.trim(),
-      category: (parsed.category || "").trim(),
+      categories: parsedCategory ? [parsedCategory] : [],
       tags: (parsed.tags || []).filter(Boolean),
       job: (parsed.job || "").trim(),
       interests: (parsed.interests || "").trim(),
@@ -502,8 +524,8 @@ export default function ForPeople() {
       comment: (parsed.comment || "").trim(),
     };
     await persistContacts([...contacts, newContact]);
-    if (newContact.category && !categories.includes(newContact.category)) {
-      await persistCategories([...categories, newContact.category]);
+    if (parsedCategory && !categories.includes(parsedCategory)) {
+      await persistCategories([...categories, parsedCategory]);
     }
     const newTags = newContact.tags.filter((t) => !tags.includes(t));
     if (newTags.length > 0) await persistTags([...tags, ...newTags]);
@@ -761,7 +783,7 @@ export default function ForPeople() {
                         <div style={styles.featuredAvatar}>{lastContact.avatar ? <img src={lastContact.avatar} alt="" style={styles.avatarImg} /> : initials(lastContact)}</div>
                         <div style={styles.featuredBody}>
                           <div style={styles.featuredName}>{lastContact.firstName} {lastContact.lastName}</div>
-                          <div style={styles.featuredSub}>{lastContact.job || lastContact.category || "Новый контакт"}</div>
+                          <div style={styles.featuredSub}>{lastContact.job || contactCategories(lastContact)[0] || "Новый контакт"}</div>
                         </div>
                       </div>
                       {lastLink && (
@@ -906,8 +928,8 @@ export default function ForPeople() {
         <div className={closingBulkPopover ? "fp-overlay-anim-out" : "fp-overlay-anim"} style={styles.overlay} onClick={closeBulkPopover}>
           <div className={closingBulkPopover ? "fp-sheet-anim-out" : "fp-sheet-anim"} style={styles.popoverSheet} onClick={(e) => e.stopPropagation()}>
             <div style={styles.popoverTitle}>Применить категорию</div>
-            <div style={styles.chipWrap}>{categories.map((cat) => <button key={cat} className="fp-btn" style={styles.pickChip} onClick={() => bulkSetCategory(cat)}>{cat}</button>)}</div>
-            <InlineAdd placeholder="Новая категория" onAdd={async (v) => { const n = v.trim(); await addNewCategory(n); await bulkSetCategory(n); }} />
+            <div style={styles.chipWrap}>{categories.map((cat) => <button key={cat} className="fp-btn" style={styles.pickChip} onClick={() => bulkAddCategory(cat)}>{cat}</button>)}</div>
+            <InlineAdd placeholder="Новая категория" onAdd={async (v) => { const n = v.trim(); await addNewCategory(n); await bulkAddCategory(n); }} />
           </div>
         </div>
       )}
@@ -947,7 +969,11 @@ export default function ForPeople() {
             <div style={styles.avatarBubbleBig}>{openContact.avatar ? <img src={openContact.avatar} alt="" style={styles.avatarImgBig} /> : initials(openContact)}</div>
             <div style={styles.detailName}>{openContact.firstName} {openContact.lastName}</div>
             {openContact.job && <div style={styles.detailSub}>{openContact.job}{openContact.company ? ` · ${openContact.company}` : ""}</div>}
-            {openContact.category && <div style={styles.detailCategoryTag}>{openContact.category}</div>}
+            {contactCategories(openContact).length > 0 && (
+              <div style={{ ...styles.chipWrap, marginTop: 6 }}>
+                {contactCategories(openContact).map((cat) => <span key={cat} style={styles.detailCategoryTag}>{cat}</span>)}
+              </div>
+            )}
             {openContact.tags && openContact.tags.length > 0 && (
               <div style={{ ...styles.chipWrap, marginTop: 8 }}>{openContact.tags.map((t) => <span key={t} style={styles.tagBadge}>#{t}</span>)}</div>
             )}
@@ -1094,10 +1120,10 @@ export default function ForPeople() {
                   <div style={styles.sectionLabel}>Категория</div>
                   <div style={styles.chipWrap}>
                     {categories.map((cat) => (
-                      <button key={cat} className="fp-btn" style={{ ...styles.pickChip, ...(drafting.category === cat ? styles.pickChipActive : {}) }} onClick={() => setDrafting({ ...drafting, category: drafting.category === cat ? "" : cat })}>{cat}</button>
+                      <button key={cat} className="fp-btn" style={{ ...styles.pickChip, ...((drafting.categories || []).includes(cat) ? styles.pickChipActive : {}) }} onClick={() => toggleDraftCategory(cat)}>{cat}</button>
                     ))}
                   </div>
-                  <InlineAdd placeholder="Новая категория" onAdd={async (v) => { await addNewCategory(v); setDrafting((d) => ({ ...d, category: v.trim() })); }} />
+                  <InlineAdd placeholder="Новая категория" onAdd={async (v) => { const n = v.trim(); await addNewCategory(n); if (n) setDrafting((d) => ({ ...d, categories: Array.from(new Set([...(d.categories || []), n])) })); }} />
                   <div style={styles.sectionLabel}>Теги</div>
                   <div style={styles.chipWrap}>
                     {tags.map((t) => (
