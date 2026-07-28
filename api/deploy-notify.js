@@ -2,26 +2,33 @@
 //
 // Уведомление в Telegram-бот при каждом успешном деплое проекта.
 //
-// Как это работает: Vercel умеет сам стучаться в произвольный URL при
-// событиях аккаунта/команды (Settings → Webhooks на vercel.com — это
-// НЕ то же самое, что api/telegram-webhook.js, который слушает события
-// от Telegram). Настраиваешь там один раз:
-//   1. Event: "Deployment Succeeded"
-//   2. URL: https://твой-проект.vercel.app/api/deploy-notify?token=<DEPLOY_NOTIFY_SECRET>
-//   3. Project: этот проект
-// После этого при каждом успешном деплое Vercel сам пришлёт сюда payload,
-// а этот файл разошлёт короткое сообщение всем ADMIN_CHAT_IDS через уже
-// готовые хелперы из api/_lib/telegramNotify.js (тот же TELEGRAM_BOT_TOKEN,
-// что и everywhere else — отдельный секрет для бота заводить не нужно).
+// ВАЖНО: account-level "Settings → Webhooks" на vercel.com доступны только
+// на платных планах. На Free-тарифе используется обходной путь —
+// GitHub Actions слушает событие deployment_status (его шлёт сам GitHub,
+// когда GitHub-интеграция Vercel обновляет статус деплоя) и дёргает этот
+// эндпоинт напрямую. Файл workflow'а: .github/workflows/notify-deploy.yml —
+// см. инструкцию по настройке в README.md.
+//
+// Если план когда-нибудь станет платным — можно вместо этого настроить
+// "родной" вебхук Vercel:
+//   Team Settings → Webhooks → Add Webhook
+//   Event: "Deployment Succeeded"
+//   URL: https://твой-проект.vercel.app/api/deploy-notify?token=<DEPLOY_NOTIFY_SECRET>
+// Оба варианта шлют сюда POST, этот файл разбирает оба формата тела и
+// рассылает сообщение всем ADMIN_CHAT_IDS через уже готовые хелперы из
+// api/_lib/telegramNotify.js (тот же TELEGRAM_BOT_TOKEN, что и everywhere
+// else — отдельный секрет для бота заводить не нужно).
 //
 // DEPLOY_NOTIFY_SECRET — свой собственный секрет (просто случайная строка),
-// задаётся в Vercel Environment Variables. Проверяем его как query-параметр
-// ?token=, а не подпись x-vercel-signature: Vercel подписывает HMAC'ом
-// сырого тела запроса, а serverless-функции здесь получают уже распарсенный
-// JSON (req.body) без доступа к исходным байтам — сверить подпись байт-в-байт
-// поэтому нельзя. Секрет в URL, который знает только Vercel (URL вебхука
-// нигде публично не светится), даёт то же самое на практике — защиту от
-// того, что кто-то посторонний дёрнет этот эндпоинт вручную.
+// задаётся в Vercel Environment Variables И как секрет репозитория в
+// GitHub (Settings → Secrets and variables → Actions) — значение должно
+// совпадать в обоих местах. Проверяем его как query-параметр ?token=, а не
+// подпись x-vercel-signature/HMAC: у GitHub Actions такой подписи и вовсе
+// нет, а serverless-функции здесь получают уже распарсенный JSON (req.body)
+// без доступа к исходным байтам запроса — сверить HMAC байт-в-байт для
+// вебхука Vercel тоже было бы нельзя. Секрет в URL, который никому не
+// показываем, даёт то же самое на практике — защиту от того, что кто-то
+// посторонний дёрнет этот эндпоинт вручную.
 import { notifyAllAdmins } from "./_lib/telegramNotify.js";
 
 export default async function handler(req, res) {
@@ -48,9 +55,13 @@ export default async function handler(req, res) {
     return;
   }
 
-  // Тело запроса от Vercel — не гадаем на 100% совпадение со схемой (Vercel
-  // может её менять), поэтому читаем защищённо, с фоллбэками на случай,
-  // если какого-то поля не будет.
+  // Тело запроса. Поддерживаем два формата:
+  // 1) "родной" вебхук Vercel (Settings → Webhooks, только на платных
+  //    планах) — вложенный { type, payload: { deployment, project } };
+  // 2) плоское тело от GitHub Actions (см. .github/workflows/notify-deploy.yml)
+  //    для Vercel Free, где вебхуков аккаунта нет — { type, target, url,
+  //    project, branch, commit }. Не гадаем на 100% совпадение со схемой,
+  //    поэтому читаем защищённо, с фоллбэками на случай отсутствия поля.
   const body = req.body || {};
   const type = body.type || body.event || "";
 
@@ -63,12 +74,13 @@ export default async function handler(req, res) {
 
   const deployment = body.payload?.deployment || body.payload || {};
   const project = body.payload?.project || {};
-  const target = deployment.target || body.payload?.target || "production";
-  const url = deployment.url ? `https://${deployment.url}` : "";
-  const projectName = project.name || deployment.name || "for-people-miniapp";
+  const target = deployment.target || body.target || "production";
+  const rawUrl = deployment.url || body.url || "";
+  const url = rawUrl ? (rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`) : "";
+  const projectName = project.name || deployment.name || body.project || "for-people-miniapp";
   const meta = deployment.meta || {};
-  const branch = meta.githubCommitRef || meta.gitCommitRef || "";
-  const commitMsg = meta.githubCommitMessage || meta.gitCommitMessage || "";
+  const branch = meta.githubCommitRef || meta.gitCommitRef || body.branch || "";
+  const commitMsg = meta.githubCommitMessage || meta.gitCommitMessage || body.commit || "";
 
   const lines = [
     `✅ Деплой «${projectName}» прошёл успешно`,
