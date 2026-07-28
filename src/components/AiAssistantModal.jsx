@@ -57,7 +57,7 @@ ${JSON.stringify(compact)}
       if (!proxyUrl) {
         setAiMessages((prev) => [...prev, {
           role: "ai",
-          text: "AI-помощник ещё не подключён: не задан адрес backend-прокси (VITE_AI_PROXY_URL в .env). Смотри README — там пример готового прокси-сервера.",
+          text: "AI-помощник пока не подключён. Попробуйте найти контакт вручную через поиск.",
           matches: [],
         }]);
         return;
@@ -74,10 +74,7 @@ ${JSON.stringify(compact)}
       setAiMessages((prev) => [...prev, { role: "ai", text: sanitizeAiText(parsed.message) || "Готово.", matches }]);
       if (onUseAi) onUseAi();
     } catch (err) {
-      const msg = err && err.message && err.message !== "proxy error"
-        ? err.message
-        : "Не получилось обработать запрос. Попробуйте переформулировать.";
-      setAiMessages((prev) => [...prev, { role: "ai", text: msg, matches: [] }]);
+      setAiMessages((prev) => [...prev, { role: "ai", text: "Не получилось обработать запрос. Попробуйте переформулировать.", matches: [] }]);
     } finally { setAiLoading(false); }
   }
 
