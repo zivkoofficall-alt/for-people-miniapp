@@ -51,7 +51,7 @@ export default function QuickAddAI({ categories, onClose, onCreate, remainingAi 
     try {
       const proxyUrl = import.meta.env.VITE_AI_PROXY_URL;
       if (!proxyUrl) {
-        setError("AI-помощник ещё не подключён: не задан VITE_AI_PROXY_URL в .env. Смотри README.");
+        setError("AI-помощник пока не подключён. Заполните карточку вручную — так тоже быстро.");
         return;
       }
       const today = new Date();
