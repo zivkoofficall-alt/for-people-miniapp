@@ -187,9 +187,11 @@ export default function Goals({ goals, contacts, categories, tags, onClose, onCr
             {goals.length === 0 ? (
               <div style={{ ...styles.emptyHint, marginTop: 16 }}>Пока нет целей — добавьте первую, чтобы отслеживать прогресс по сети контактов.</div>
             ) : (
-              <div style={{ marginTop: 16 }}>
+              <div style={{ ...styles.goalsGrid, marginTop: 16 }}>
                 {goals.map((g) => (
-                  <GoalCard key={g.id} goal={g} contacts={contacts} onToggleQualDone={onToggleQualDone} onDelete={onDeleteGoal} onEdit={setEditingGoal} />
+                  <div key={g.id} style={goals.length === 1 ? { gridColumn: "1 / -1" } : undefined}>
+                    <GoalCard goal={g} contacts={contacts} onToggleQualDone={onToggleQualDone} onDelete={onDeleteGoal} onEdit={setEditingGoal} />
+                  </div>
                 ))}
               </div>
             )}
