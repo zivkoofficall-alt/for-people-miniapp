@@ -392,7 +392,8 @@ const styles = {
   dangerGhostBtn: { width: "100%", textAlign: "center", color: "#E5484D", fontWeight: 700, fontSize: 13, padding: "12px 0", background: "transparent", border: "none", marginTop: 6, display: "flex", alignItems: "center", justifyContent: "center" },
 
   // --- Цели (Модуль 3D) ---
-  goalCard: { background: "#fff", border: CARD_BORDER, borderRadius: 18, padding: 14, boxShadow: CARD_SHADOW, marginBottom: 10, cursor: "pointer", textAlign: "left" },
+  goalsGrid: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 },
+  goalCard: { background: "#fff", border: CARD_BORDER, borderRadius: 18, padding: 14, boxShadow: CARD_SHADOW, cursor: "pointer", textAlign: "left" },
   goalCardTop: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   goalTitle: { fontSize: 14, fontWeight: 700, color: INK, flex: 1, marginRight: 8 },
   goalDeleteBtn: { width: 26, height: 26, borderRadius: "50%", background: "transparent", border: "none", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(11,11,16,0.35)", flexShrink: 0 },
