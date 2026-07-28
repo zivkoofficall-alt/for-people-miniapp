@@ -338,19 +338,41 @@ webhook бота — без него платёж зависает и отвал
 ### Уведомление в Telegram при каждом успешном деплое
 
 `api/deploy-notify.js` шлёт короткое сообщение всем `ADMIN_CHAT_IDS` через
-уже настроенный `TELEGRAM_BOT_TOKEN` каждый раз, когда деплой на Vercel
-прошёл успешно. Настраивается один раз, без CI:
+уже настроенный `TELEGRAM_BOT_TOKEN` каждый раз, когда деплой прошёл
+успешно. Настроить можно одним из двух способов — в зависимости от тарифа
+на Vercel.
 
+**Общее для обоих способов:**
 1. `ADMIN_CHAT_IDS` и `TELEGRAM_BOT_TOKEN` уже должны быть заданы на Vercel
 2. Придумай случайную строку и задай её как `DEPLOY_NOTIFY_SECRET` в
    Environment Variables на Vercel
-3. На vercel.com: **Settings → Webhooks** (уровень аккаунта/команды) →
-   **Add Webhook** → Event: **Deployment Succeeded** → URL:
-   `https://твой-проект.vercel.app/api/deploy-notify?token=<DEPLOY_NOTIFY_SECRET>`
-   → выбери этот проект
 
-После этого при каждом успешном деплое в чат придёт сообщение с названием
-проекта, окружением (production/preview), веткой и ссылкой.
+**Способ А — если тариф Pro или выше (или команда с включёнными
+Webhooks):**
+
+На vercel.com: **Team Settings → Webhooks** → **Add Webhook** → Event:
+**Deployment Succeeded** → URL:
+`https://твой-проект.vercel.app/api/deploy-notify?token=<DEPLOY_NOTIFY_SECRET>`
+→ выбери этот проект.
+
+**Способ Б — если тариф Free (account-level Webhooks недоступны):**
+
+Обходной путь через GitHub Actions — бесплатно и не требует апгрейда
+тарифа. Работает, если проект задеплоен через GitHub-интеграцию Vercel
+(а не через `vercel` CLI напрямую): Vercel сама создаёт GitHub Deployment
+и обновляет его статус, а GitHub Actions умеет слушать это событие
+(`deployment_status`) на любом тарифе.
+
+1. В репозитории на GitHub: **Settings → Secrets and variables → Actions**
+   → **New repository secret** → имя `DEPLOY_NOTIFY_SECRET`, значение — то
+   же самое, что задано в Vercel Environment Variables (шаг выше)
+2. Файл `.github/workflows/notify-deploy.yml` уже есть в проекте — если в
+   нём другой домен, поменяй `VERCEL_APP_URL` на свой
+3. Закоммить и запушь — дальше всё само: при каждом успешном деплое
+   workflow дёрнет `/api/deploy-notify`
+
+Оба способа шлют в чат сообщение с названием проекта, окружением
+(production/preview), веткой и ссылкой.
 
 ## Структура проекта
 
@@ -368,6 +390,7 @@ for-people-miniapp/
 │   ├── telegram-webhook.js     — обработка pre_checkout_query/успешной оплаты
 │   ├── deploy-notify.js        — уведомление в Telegram при успешном деплое
 │   └── _lib/telegramNotify.js  — общие хелперы отправки сообщений в Telegram
+├── .github/workflows/notify-deploy.yml — уведомление о деплое (Vercel Free)
 ├── .env.example          — куда вписать адреса backend-эндпоинтов
 └── package.json
 ```
