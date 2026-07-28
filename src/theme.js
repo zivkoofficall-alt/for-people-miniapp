@@ -38,6 +38,7 @@ const globalCss = `
   .fp-fab { transition: transform .15s ease; }
   .fp-fab:active { transform: scale(0.9); }
   .fp-pulse { animation: fpPulse 1.2s ease-in-out infinite; }
+  .fp-splash-out { animation: fpFadeOut .4s ease both; pointer-events: none; }
   .fp-pair-row { display: flex; gap: 8px; }
   /* Ховер только на устройствах, где он реально означает "курсор навёл"
      (мышь) — на тач-экранах (hover:none) браузеры эмулируют hover после
@@ -201,6 +202,14 @@ const styles = {
   bulkActions: { display: "flex", gap: 8 },
   bulkBtn: { display: "flex", alignItems: "center", gap: 5, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 999, padding: "7px 11px", fontSize: 11.5, fontWeight: 600, color: "#fff" },
   overlay: { position: "fixed", inset: 0, background: "rgba(11,11,16,0.45)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 50, overscrollBehavior: "contain", touchAction: "none" },
+  // Полноэкранный сплэш при начальной загрузке данных (Фаза B, задача 1).
+  // zIndex выше всего остального в приложении (максимум был 60 у toast),
+  // touchAction/overscrollBehavior — чтобы под сплэшем нельзя было
+  // проскроллить или задеть контент, пока данные ещё не готовы.
+  splashScreen: { position: "fixed", inset: 0, background: BG, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, zIndex: 999, touchAction: "none", overscrollBehavior: "contain" },
+  splashLogoWrap: { width: 96, height: 96, borderRadius: 28, background: PURPLE_GRADIENT, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: PURPLE_GRADIENT_SHADOW, overflow: "hidden" },
+  splashLogo: { width: 56, height: 56, objectFit: "contain" },
+  splashText: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600, fontSize: 13, color: MUTED, letterSpacing: 0.2 },
   popoverSheet: { width: "100%", maxWidth: 480, background: SHEET_BG, borderRadius: "26px 26px 0 0", padding: "22px 20px 26px", border: "1px solid rgba(11,11,16,0.08)", borderBottom: "none", overscrollBehavior: "contain" },
   popoverTitle: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 16, marginBottom: 14, color: INK },
   chipWrap: { display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 10 },
