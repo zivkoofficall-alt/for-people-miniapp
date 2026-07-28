@@ -42,6 +42,17 @@
 // Если бот добавлен в группу — у @BotFather нужно выключить Group Privacy
 // (Bot Settings → Group Privacy → Turn off), иначе Bot API не увидит
 // обычные сообщения без упоминания бота.
+//
+// --- Редактирование сообщения в буфере ---
+// Если пользователь исправил опечатку в уже отправленном боту сообщении
+// (Telegram присылает update.edited_message), бот находит в буфере СТРОГО
+// ту запись, что была создана из этого конкретного message_id, и обновляет
+// только её текст — остальной буфер не трогается. Если запись не находится
+// (например, её уже забрали в /endpoint, либо это правка команды/сообщения
+// не из буфера) — правка молча игнорируется, ничего не удаляется.
+// Для этого таблице bug_reports нужна колонка message_id (bigint), если её
+// ещё нет:
+//   ALTER TABLE bug_reports ADD COLUMN IF NOT EXISTS message_id bigint;
 // Нужны переменные окружения: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
 // ADMIN_CHAT_IDS (один id или несколько через запятую), опционально
 // GEMINI_API_KEY (для фото/голосовых — без ключа они просто игнорируются
@@ -131,7 +142,40 @@ async function getVersion(chatId) {
   return rows?.[0]?.version || "1.0.0";
 }
 
+/**
+ * Правка уже отправленного боту сообщения. В отличие от нового сообщения,
+ * здесь НЕЛЬЗЯ просто insertRows заново — иначе в буфере окажется дубль
+ * старой и новой версии. Вместо этого ищем в буфере запись с тем же
+ * chat_id + message_id и статусом pending, и патчим только её текст.
+ * Если такой записи нет — правка ни к чему не относится (правили
+ * команду, уже отправленный /endpoint репорт, и т.п.) и просто
+ * игнорируется, без побочных эффектов.
+ */
+async function handleEditedBugMessage(msg, botToken) {
+  const chatId = msg.chat.id;
+  const text = (msg.text || msg.caption || "").trim();
+  if (!text) return true; // отредактировали не текст (например, подпись убрали) — нечего обновлять
+
+  const allowedChatIds = getAllowedChatIds();
+  if (allowedChatIds.length === 0) return false;
+  if (!allowedChatIds.includes(String(chatId))) return false; // чужой чат — молча игнорируем
+
+  const rows = await selectRows(
+    "bug_reports",
+    `chat_id=eq.${chatId}&message_id=eq.${msg.message_id}&status=eq.pending&select=id`
+  );
+  if (!rows?.length) return true; // не тот баг (или уже отправлен в /endpoint) — буфер не трогаем
+
+  await updateRows("bug_reports", `id=eq.${rows[0].id}`, { message: text });
+  await sendMessage(botToken, chatId, `Запись в буфере обновлена ✅\n${text}`);
+  return true;
+}
+
 async function handleBugBotUpdate(update, botToken) {
+  if (update.edited_message) {
+    return handleEditedBugMessage(update.edited_message, botToken);
+  }
+
   const msg = update.message;
   if (!msg) return false;
   const chatId = msg.chat.id;
@@ -202,10 +246,14 @@ async function handleBugBotUpdate(update, botToken) {
     try {
       const largest = msg.photo[msg.photo.length - 1]; // Telegram отдаёт по возрастанию размера
       const { base64, mimeType } = await downloadTelegramFile(botToken, largest.file_id);
-      const description = await describeScreenshotBug(base64, mimeType);
+      // text здесь — это caption, прикреплённый к фото (см. вычисление text
+      // в начале функции). Раньше он вычислялся, но никуда не передавался —
+      // Gemini описывал скриншот "вслепую", игнорируя то, что написал
+      // пользователь. Теперь подпись уходит в модель вместе с картинкой.
+      const description = await describeScreenshotBug(base64, mimeType, text);
       await markGeminiOk();
       const finalText = `[Скриншот] ${description}`;
-      await insertRows("bug_reports", [{ chat_id: chatId, message: finalText, sender_name: from }]);
+      await insertRows("bug_reports", [{ chat_id: chatId, message: finalText, sender_name: from, message_id: msg.message_id }]);
       await sendMessage(botToken, chatId, `Добавлено в буфер ✅\n${finalText}`);
     } catch (err) {
       console.error("describeScreenshotBug error", err);
@@ -226,7 +274,7 @@ async function handleBugBotUpdate(update, botToken) {
       const transcript = await transcribeVoice(base64, mimeType);
       if (!transcript) throw new Error("пустая транскрипция");
       await markGeminiOk();
-      await insertRows("bug_reports", [{ chat_id: chatId, message: transcript, sender_name: from }]);
+      await insertRows("bug_reports", [{ chat_id: chatId, message: transcript, sender_name: from, message_id: msg.message_id }]);
       await sendMessage(botToken, chatId, `Добавлено в буфер ✅ (по голосовому)\n${transcript}`);
     } catch (err) {
       console.error("transcribeVoice error", err);
@@ -411,7 +459,7 @@ async function handleBugBotUpdate(update, botToken) {
 
   // Обычное текстовое сообщение (не команда) — копим в буфер.
   if (!text.startsWith("/")) {
-    await insertRows("bug_reports", [{ chat_id: chatId, message: text, sender_name: from }]);
+    await insertRows("bug_reports", [{ chat_id: chatId, message: text, sender_name: from, message_id: msg.message_id }]);
     await sendMessage(botToken, chatId, "Добавлено в буфер ✅ (/status — посмотреть, /endpoint — собрать промпт)");
     return true;
   }
