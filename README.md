@@ -56,7 +56,28 @@ AI не может стучаться в Anthropic API напрямую с те�
 остальное приложение будет работать полностью (контакты, категории,
 теги, психологический портрет, импорт/экспорт CSV, массовое редактирование).
 
-### 3. Задеплоить сайт (получить https-ссылку)
+### 3. Настроить оплату Pro звёздами Telegram (необязательно, но без этого
+    шага кнопка оплаты будет показывать "оплата ещё не настроена")
+
+Отдельный платёжный провайдер не нужен — звёзды (валюта `XTR`) обрабатывает
+сам Bot API через тот же `TELEGRAM_BOT_TOKEN`, что и для AI-помощника.
+
+1. `TELEGRAM_BOT_TOKEN` в Environment Variables на Vercel уже должен быть
+   задан (см. шаг 2) — если ещё нет, добавь его сейчас
+2. Допиши в свой `.env` адрес счёта:
+   `VITE_CREATE_STARS_INVOICE_URL=https://твой-проект.vercel.app/api/create-stars-invoice`
+3. **Обязательный разовый шаг** — привяжи webhook бота, иначе платёж
+   зависает и отваливается по таймауту (Telegram должен получить ответ на
+   `pre_checkout_query` в течение 10 секунд, это делает
+   `api/telegram-webhook.js`). Открой один раз в браузере (подставив свои
+   значения):
+   `https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://твой-проект.vercel.app/api/telegram-webhook`
+4. Пересобери проект (`npm run build`) и передеплой
+
+Если оплата звёздами не нужна — можно не настраивать, кнопка Pro покажет
+понятное сообщение, а вкладка Free Trial продолжит работать как обычно.
+
+### 4. Задеплоить сайт (получить https-ссылку)
 
 Проще всего — Vercel:
 
@@ -67,7 +88,7 @@ AI не может стучаться в Anthropic API напрямую с те�
 
 Обязательно должно быть **https** — Telegram не откроет обычный http-сайт.
 
-### 4. Создать бота и подключить Mini App
+### 5. Создать бота и подключить Mini App
 
 1. Напиши в Telegram боту **@BotFather**
 2. `/newbot` → придумай имя и юзернейм → получишь токен (сохрани его)
@@ -76,7 +97,7 @@ AI не может стучаться в Anthropic API напрямую с те�
    (или через `/newapp`, если хочешь полноценный Mini App с иконкой
    в общем каталоге приложений Telegram)
 
-### 5. Проверить
+### 6. Проверить
 
 Открой бота в Telegram → нажми кнопку меню внизу экрана — приложение
 откроется прямо внутри Telegram, с адаптацией под тему (тёмная/светлая)
@@ -304,12 +325,32 @@ AI-запросов в месяц) или Pro Networker — и расход ли
 **Важно для деплоя**: теперь на Vercel нужно задать не только
 `GEMINI_API_KEY`, но и `TELEGRAM_BOT_TOKEN` (токен бота от @BotFather) —
 без него `validateInitData()` будет отклонять все запросы с 401, и
-`api/ai-proxy.js` / `api/send-csv.js` не заработают вообще.
+`api/ai-proxy.js` / `api/send-csv.js` / `api/create-stars-invoice.js` не
+заработают вообще. Для оплаты звёздами дополнительно нужны
+`VITE_CREATE_STARS_INVOICE_URL` (см. шаг 3 выше) и один раз настроенный
+webhook бота — без него платёж зависает и отваливается по таймауту.
 
 Если используется бот-накопитель баг-репортов (`api/telegram-webhook.js`,
 команды `/status`, `/endpoint` и т.д.) — дополнительно нужны `SUPABASE_URL`,
 `SUPABASE_SERVICE_ROLE_KEY` и `ADMIN_CHAT_IDS`. Полный список всех
 серверных переменных — в `.env.example` (внизу файла).
+
+### Уведомление в Telegram при каждом успешном деплое
+
+`api/deploy-notify.js` шлёт короткое сообщение всем `ADMIN_CHAT_IDS` через
+уже настроенный `TELEGRAM_BOT_TOKEN` каждый раз, когда деплой на Vercel
+прошёл успешно. Настраивается один раз, без CI:
+
+1. `ADMIN_CHAT_IDS` и `TELEGRAM_BOT_TOKEN` уже должны быть заданы на Vercel
+2. Придумай случайную строку и задай её как `DEPLOY_NOTIFY_SECRET` в
+   Environment Variables на Vercel
+3. На vercel.com: **Settings → Webhooks** (уровень аккаунта/команды) →
+   **Add Webhook** → Event: **Deployment Succeeded** → URL:
+   `https://твой-проект.vercel.app/api/deploy-notify?token=<DEPLOY_NOTIFY_SECRET>`
+   → выбери этот проект
+
+После этого при каждом успешном деплое в чат придёт сообщение с названием
+проекта, окружением (production/preview), веткой и ссылкой.
 
 ## Структура проекта
 
@@ -322,7 +363,11 @@ for-people-miniapp/
 │   └── storage.js        — обёртка над Telegram CloudStorage / localStorage
 ├── api/
 │   ├── ai-proxy.js       — пример backend-прокси для AI (Vercel Function)
-│   └── send-csv.js       — отправка CSV документом в Telegram-чат (Vercel Function)
-├── .env.example          — куда вписать адрес AI-прокси
+│   ├── send-csv.js       — отправка CSV документом в Telegram-чат (Vercel Function)
+│   ├── create-stars-invoice.js — счёт на оплату Pro звёздами Telegram
+│   ├── telegram-webhook.js     — обработка pre_checkout_query/успешной оплаты
+│   ├── deploy-notify.js        — уведомление в Telegram при успешном деплое
+│   └── _lib/telegramNotify.js  — общие хелперы отправки сообщений в Telegram
+├── .env.example          — куда вписать адреса backend-эндпоинтов
 └── package.json
 ```
