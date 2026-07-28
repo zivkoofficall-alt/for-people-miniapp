@@ -159,18 +159,20 @@ export default function Profile({ subscription, contacts, tasks, onClose, onActi
 
           {!isPro && (
             <>
-              <div style={styles.paymentMethodRow}>
-                {PAYMENT_METHODS.map((m) => (
-                  <button
-                    key={m.key}
-                    className="fp-btn"
-                    style={{ ...styles.paymentMethodChip, ...(paymentMethod === m.key ? styles.paymentMethodChipActive : {}) }}
-                    onClick={() => { setPaymentMethod(m.key); setPayAttempted(false); setStarsError(""); }}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
+              {PAYMENT_METHODS.length > 1 && (
+                <div style={styles.paymentMethodRow}>
+                  {PAYMENT_METHODS.map((m) => (
+                    <button
+                      key={m.key}
+                      className="fp-btn"
+                      style={{ ...styles.paymentMethodChip, ...(paymentMethod === m.key ? styles.paymentMethodChipActive : {}) }}
+                      onClick={() => { setPaymentMethod(m.key); setPayAttempted(false); setStarsError(""); }}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {paymentMethod === "stars" ? (
                 <>
