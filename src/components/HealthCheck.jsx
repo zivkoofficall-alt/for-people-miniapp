@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { X, Gauge, Lightbulb, Users, TrendingUp, Layers2, PieChart } from "lucide-react";
 import { styles } from "../theme.js";
-import { initials, computeHealthMetrics, computeContactStats, sanitizeAiText } from "../helpers.js";
+import { initials, computeHealthMetrics, computeContactStats, sanitizeAiText, contactCategories } from "../helpers.js";
 
 const STATUS_META = {
   red: { color: "#E5484D", label: "🔴 Нужна гигиена базы" },
@@ -143,7 +143,7 @@ export default function HealthCheck({ contacts, categories, tasks = [], onClose,
 - Глубина профилей (заметки/интересы): ${metrics.depthScore}%
 - Распределение по категориям: ${metrics.categoryDistribution.map((d) => `${d.name}: ${d.count}`).join(", ") || "нет данных"}
 - Категории без единого контакта: ${metrics.gapCategories.join(", ") || "нет пропусков"}
-- Контакты, с которыми давно не было связи (или дата не указана): ${metrics.staleContacts.map((c) => `${c.firstName} ${c.lastName}${c.category ? ` (${c.category})` : ""}`).join(", ") || "нет"}
+- Контакты, с которыми давно не было связи (или дата не указана): ${metrics.staleContacts.map((c) => `${c.firstName} ${c.lastName}${contactCategories(c).length ? ` (${contactCategories(c).join(", ")})` : ""}`).join(", ") || "нет"}
 
 Дай ровно 3 коротких конкретных рекомендации на русском, каждая — одно предложение, опирающееся на реальные цифры/имена/категории выше (например "У вас 0 контактов в категории X" или "Вы давно не общались с Y из категории Z"). Без вступлений и общих слов.
 Ответь СТРОГО в JSON без markdown: {"recommendations": ["...", "...", "..."]}`;
