@@ -266,6 +266,13 @@ const styles = {
   uploadZone: { width: "100%", background: PURPLE_SOFT, border: "1.5px dashed rgba(124,77,255,0.4)", borderRadius: 18, padding: "22px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: PURPLE, fontSize: 13, fontWeight: 600 },
   importError: { fontSize: 12.5, color: "#E5484D", marginTop: 12 },
   importFound: { fontSize: 13, fontWeight: 700, marginTop: 16, color: INK },
+  // Отдельный нередактируемый блок для исходного текста пользователя,
+  // когда AI не смог сократить его в короткую заметку (Фаза A) — визуально
+  // явно не поле ввода: приглушённый фон, пунктирная рамка, курсив.
+  originalTextCard: { background: "#F5F3FA", border: "1px dashed rgba(11,11,16,0.15)", borderRadius: 14, padding: 12, marginTop: 8 },
+  originalTextLabel: { fontSize: 11, color: MUTED, marginBottom: 6 },
+  originalTextBody: { fontSize: 12.5, color: INK, fontStyle: "italic", lineHeight: 1.4, whiteSpace: "pre-wrap", wordBreak: "break-word" },
+  originalTextUseBtn: { marginTop: 8, background: "none", border: "none", color: PURPLE, fontSize: 11.5, fontWeight: 700, padding: 0 },
   quickAddTextarea: { width: "100%", minHeight: 110, background: "#F5F3FA", border: CARD_BORDER, borderRadius: 16, padding: 14, fontSize: 14, color: INK, outline: "none", fontFamily: "'Inter', sans-serif", resize: "none" },
   micRow: { display: "flex", alignItems: "center", gap: 10, marginTop: 10 },
   micBtn: { width: 44, height: 44, borderRadius: "50%", background: PURPLE_SOFT, border: `1px solid rgba(124,77,255,0.3)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
