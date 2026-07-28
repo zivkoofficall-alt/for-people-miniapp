@@ -8,7 +8,7 @@ import { storage } from "./storage";
 import { MESSENGERS, DEFAULT_CATEGORIES, ENERGY_OPTIONS, TRUST_OPTIONS, STEP_DEFS, DEFAULT_TASK_TYPES } from "./constants.js";
 import { emptyContact, emptyTask, emptyGoal, emptySubscription, computeGoalProgress, buildContactLink, initials, pluralPeople, csvEscape, resizeImageFile, nextRepeatDate } from "./helpers.js";
 import { globalCss, INK, PURPLE, styles } from "./theme.js";
-import { PsychRow, Field, InlineAdd, ConfirmModal } from "./components/Ui.jsx";
+import { PsychRow, Field, InlineAdd, ConfirmModal, SplashScreen } from "./components/Ui.jsx";
 import ContactCard from "./components/ContactCard.jsx";
 
 // Ленивая загрузка: код AI-помощника и импорта из Google подгружается
@@ -56,6 +56,8 @@ export default function ForPeople() {
   const [goals, setGoals] = useState([]); // NEW — цели (Модуль 3D)
   const [subscription, setSubscription] = useState(emptySubscription()); // NEW — тариф/лимит AI (Модуль 3D)
   const [loaded, setLoaded] = useState(false);
+  const [showSplash, setShowSplash] = useState(true); // NEW — полноэкранный сплэш при старте (Фаза B)
+  const [splashClosing, setSplashClosing] = useState(false); // NEW — идёт fade-out сплэша
   const activeTaskCount = useMemo(() => tasks.filter((t) => t.status !== "done").length, [tasks]);
 
   const [query, setQuery] = useState("");
@@ -246,6 +248,16 @@ export default function ForPeople() {
       setLoaded(true);
     })();
   }, []);
+
+  // Сплэш уходит не мгновенно вместе с loaded=true, а сначала проигрывает
+  // fade-out (см. fp-splash-out в theme.js), и только потом убирается из
+  // дерева — иначе переход был бы резким морганием.
+  useEffect(() => {
+    if (!loaded) return;
+    setSplashClosing(true);
+    const t = setTimeout(() => setShowSplash(false), 400);
+    return () => clearTimeout(t);
+  }, [loaded]);
 
   // Гвард: пока начальная загрузка из storage не завершилась (loaded === false),
   // ни одна persist*-функция не пишет ничего. Раньше был риск: если пользователь
@@ -674,6 +686,8 @@ export default function ForPeople() {
     <div style={styles.app}>
       <style>{globalCss}</style>
 
+      {showSplash && <SplashScreen closing={splashClosing} />}
+
       <div style={styles.shell}>
         <header style={styles.header}>
           <div style={styles.topBar}>
@@ -811,9 +825,7 @@ export default function ForPeople() {
         </header>
 
         <main style={styles.main}>
-          {!loaded ? (
-            <div style={styles.emptyState}><div style={styles.emptyTitle}>Загрузка…</div></div>
-          ) : filtered.length === 0 ? (
+          {!loaded ? null : filtered.length === 0 ? (
             <div style={styles.emptyState}>
               <div style={styles.emptyIconWrap}><User size={26} color="#7C4DFF" strokeWidth={1.5} /></div>
               <div style={styles.emptyTitle}>{contacts.length === 0 ? "Пока пусто" : "Ничего не найдено"}</div>
