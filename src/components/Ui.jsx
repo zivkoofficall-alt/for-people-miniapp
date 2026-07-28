@@ -86,4 +86,21 @@ function ConfirmModal({ open, title, hint, confirmLabel = "Подтвердит�
   );
 }
 
-export { PsychRow, Field, InlineAdd, ConfirmModal };
+// Полноэкранный экран загрузки (Фаза B, задача 1). Показывается, пока
+// App.jsx ещё не дочитал данные из storage (loaded === false) — блокирует
+// любое взаимодействие с интерфейсом под собой (position:fixed на весь
+// экран, touchAction:none в styles.splashScreen), чтобы нельзя было тапнуть
+// по ещё не готовым данным. closing=true запускает плавное исчезновение
+// (fp-splash-out) перед тем, как App.jsx уберёт компонент из дерева.
+function SplashScreen({ closing }) {
+  return (
+    <div className={closing ? "fp-splash-out" : undefined} style={styles.splashScreen}>
+      <div className="fp-pulse" style={styles.splashLogoWrap}>
+        <img src="/logo-mark.png" alt="" aria-hidden style={styles.splashLogo} />
+      </div>
+      <div style={styles.splashText}>Загрузка…</div>
+    </div>
+  );
+}
+
+export { PsychRow, Field, InlineAdd, ConfirmModal, SplashScreen };
