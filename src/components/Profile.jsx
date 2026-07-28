@@ -206,7 +206,7 @@ export default function Profile({ subscription, contacts, tasks, onClose, onActi
           )}
         </div>
 
-        <div style={styles.versionTag}>for people · v1.2.1</div>
+        <div style={styles.versionTag}>for people · v1.2.6</div>
       </div>
     </div>
   );
