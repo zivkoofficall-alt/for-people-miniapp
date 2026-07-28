@@ -1,7 +1,7 @@
 import React from "react";
 import { ArrowUpRight, Check, Clock, Phone, Send } from "lucide-react";
 import { styles } from "../theme.js";
-import { initials, pad, buildContactLink } from "../helpers.js";
+import { initials, pad, buildContactLink, contactCategories } from "../helpers.js";
 import { MESSENGERS } from "../constants.js";
 
 // ContactCard — вынесен и обёрнут в React.memo, чтобы при массовых операциях
@@ -47,7 +47,7 @@ function ContactCardBase({ contact, index, selectMode, isSelected, onClick, onMa
         ...styles.card,
         animationDelay: `${Math.min(index * 30, 300)}ms`,
         contentVisibility: "auto",
-        containIntrinsicSize: "0 150px",
+        containIntrinsicSize: "0 170px",
       }}
       onClick={handleRootClick}
       onKeyDown={handleRootKeyDown}
@@ -65,8 +65,8 @@ function ContactCardBase({ contact, index, selectMode, isSelected, onClick, onMa
         <div style={styles.avatarBubble}>{c.avatar ? <img src={c.avatar} alt="" style={styles.avatarImg} /> : initials(c)}</div>
         <div style={styles.cardInfoCol}>
           <div style={styles.cardNameCompact}>{c.firstName} {c.lastName}</div>
-          {(c.job || c.category) && (
-            <div style={styles.cardSubtitleCompact}>{[c.job, c.category].filter(Boolean).join(" · ")}</div>
+          {(c.job || contactCategories(c).length > 0) && (
+            <div style={styles.cardSubtitleCompact}>{[c.job, ...contactCategories(c)].filter(Boolean).join(" · ")}</div>
           )}
         </div>
       </div>
