@@ -78,39 +78,15 @@
 // откатывать коммит вручную на GitHub (история коммитов не теряется).
 
 import { insertRows, selectRows, updateRows, deleteRows, upsertRow } from "./_lib/supabaseRest.js";
-import { bumpVersion, buildEndpointPrompt, buildUpdatedBlock, splitForTelegram } from "./_lib/endpointPrompt.js";
+import { bumpVersion, buildEndpointPrompt, buildUpdatedBlock } from "./_lib/endpointPrompt.js";
 import { downloadTelegramFile } from "./_lib/telegramFile.js";
 import { describeScreenshotBug, transcribeVoice, expandBugReports } from "./_lib/gemini.js";
 import { getRepoFileList, isGithubConfigured, updateRepoFile } from "./_lib/github.js";
 import { getGeminiStatus, markGeminiOk, markGeminiError } from "./_lib/geminiStatus.js";
-
-async function sendMessage(botToken, chatId, text) {
-  for (const chunk of splitForTelegram(text)) {
-    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text: chunk }),
-    });
-  }
-}
+import { sendMessage, getAllowedChatIds, notifyAllAdmins } from "./_lib/telegramNotify.js";
 
 function todayStr() {
   return new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" });
-}
-
-function getAllowedChatIds() {
-  return (process.env.ADMIN_CHAT_IDS || process.env.ADMIN_CHAT_ID || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-/** Разослать текст во все разрешённые чаты (а не только в тот, где произошла ошибка). */
-async function notifyAllAdmins(botToken, text) {
-  const chatIds = getAllowedChatIds();
-  for (const id of chatIds) {
-    await sendMessage(botToken, id, text).catch(() => {});
-  }
 }
 
 /**
