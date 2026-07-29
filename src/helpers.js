@@ -461,7 +461,7 @@ function computeContactStats(contacts, tasks) {
 
 // --- Подписка (Модуль 3D) ---
 function emptySubscription() {
-  return { plan: "free", aiRequestsUsed: 0, aiRequestsLimit: 20, renewsAt: null };
+  return { plan: "free", aiRequestsUsed: 0, aiRequestsLimit: 10, renewsAt: null };
 }
 
 export {
