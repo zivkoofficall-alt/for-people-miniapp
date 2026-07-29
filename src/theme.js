@@ -184,7 +184,7 @@ const styles = {
   // анимировать плавно — цвет просто "скачет"), а opacity этого слоя —
   // это анимируется идеально и даёт эффект мягкого "переливания".
   fabWhiteOverlay: { position: "absolute", inset: 0, borderRadius: "50%", background: "#fff", transition: "opacity .45s cubic-bezier(.4,0,.2,1)", pointerEvents: "none" },
-  fabIcon: { position: "relative", zIndex: 1, transition: "color .45s cubic-bezier(.4,0,.2,1)" },
+  fabIcon: { position: "relative", zIndex: 1, transition: "color .45s cubic-bezier(.4,0,.2,1)", filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.18))" },
   bottomBar: {
     position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 50,
     background: "#fff", borderTop: CARD_BORDER,
