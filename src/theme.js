@@ -25,6 +25,29 @@ const globalCss = `
   @keyframes fpCardIn { from{opacity:0; transform:translateY(10px) scale(0.96)} to{opacity:1; transform:translateY(0) scale(1)} }
   @keyframes fpPulse { 0%,100%{opacity:0.55} 50%{opacity:1} }
   @keyframes fpSpinSlow { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+  @keyframes fpConfettiFall {
+    0% { transform: translateY(-12vh) translateX(0) rotate(0deg); opacity: 0; }
+    8% { opacity: 1; }
+    100% { transform: translateY(108vh) translateX(var(--fp-drift, 0px)) rotate(var(--fp-spin, 360deg)); opacity: 0.9; }
+  }
+  @keyframes fpCelebrateBadgeIn {
+    0% { opacity: 0; transform: scale(0.6) translateY(10px); }
+    55% { opacity: 1; transform: scale(1.06) translateY(0); }
+    75% { transform: scale(0.98); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes fpCelebrateBadgeOut {
+    from { opacity: 1; transform: scale(1) translateY(0); }
+    to { opacity: 0; transform: scale(0.9) translateY(-8px); }
+  }
+  @keyframes fpCelebrateRingPulse {
+    0% { box-shadow: 0 0 0 0 rgba(124,77,255,0.45); }
+    100% { box-shadow: 0 0 0 22px rgba(124,77,255,0); }
+  }
+  .fp-confetti-piece { position: fixed; top: 0; will-change: transform, opacity; animation-name: fpConfettiFall; animation-timing-function: cubic-bezier(.25,.46,.45,.94); animation-fill-mode: both; pointer-events: none; }
+  .fp-celebrate-badge { animation: fpCelebrateBadgeIn .5s cubic-bezier(.2,.8,.2,1) both; }
+  .fp-celebrate-badge-out { animation: fpCelebrateBadgeOut .28s ease both; }
+  .fp-celebrate-ring { animation: fpCelebrateRingPulse 1.1s ease-out infinite; }
   .fp-splash-spin { animation: fpSpinSlow 3.4s linear infinite; }
   .fp-overlay-anim { animation: fpFadeIn .18s ease; }
   .fp-overlay-anim-out { animation: fpFadeOut .16s ease both; pointer-events: none; }
@@ -565,6 +588,20 @@ const styles = {
   authGateIcon: { width: 64, height: 64, borderRadius: 20, background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18 },
   authGateTitle: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 20, color: INK, marginBottom: 10 },
   authGateText: { fontSize: 13.5, color: MUTED, lineHeight: 1.6, maxWidth: 320 },
+
+  // --- Celebration (анимация выполнения цели) ---
+  celebrateWrap: { position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none", display: "flex", alignItems: "center", justifyContent: "center" },
+  celebrateBadge: { pointerEvents: "none", background: "#FFFFFF", borderRadius: 22, padding: "22px 26px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, boxShadow: "0 18px 40px rgba(20,10,50,0.22)", maxWidth: 260, textAlign: "center" },
+  celebrateIconRing: { width: 56, height: 56, borderRadius: "50%", background: PURPLE_GRADIENT, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: PURPLE_GRADIENT_SHADOW },
+  celebrateTitle: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, fontSize: 15.5, color: INK },
+  celebrateSubtitle: { fontSize: 12.5, color: MUTED, lineHeight: 1.4 },
+
+  // --- Бонус за подписку на Telegram-канал ---
+  channelBonusCard: { background: "linear-gradient(135deg, rgba(124,77,255,0.10) 0%, rgba(124,77,255,0.04) 100%)", border: "1px solid rgba(124,77,255,0.22)", borderRadius: 16, padding: 14, marginTop: 14, display: "flex", flexDirection: "column", gap: 8 },
+  channelBonusTitle: { display: "flex", alignItems: "center", gap: 6, fontSize: 13.5, fontWeight: 700, color: INK, fontFamily: "'Plus Jakarta Sans', sans-serif" },
+  channelBonusText: { fontSize: 12.5, color: MUTED, lineHeight: 1.45 },
+  channelBonusRow: { display: "flex", gap: 8, marginTop: 2 },
+  channelBonusDone: { display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: "#22A37A" },
 };
 
 export { globalCss, INK, MUTED, PURPLE, PURPLE_SOFT, PURPLE_GRADIENT, PURPLE_GRADIENT_SHADOW, BG, CARD_BORDER, SHEET_BG, CARD_SHADOW, styles };
