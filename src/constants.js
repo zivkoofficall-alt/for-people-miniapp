@@ -2,10 +2,10 @@
 // подключать модули, которые грузятся лениво (AI, импорт), без App.jsx целиком
 
 const MESSENGERS = [
-  { key: "whatsapp", label: "WhatsApp", short: "WA", color: "#25A45C" },
-  { key: "vk", label: "VK", short: "VK", color: "#3F6FCB" },
-  { key: "telegram", label: "Telegram", short: "TG", color: "#2AA0DB" },
-  { key: "line", label: "LINE", short: "LN", color: "#22B14C" },
+  { key: "whatsapp", label: "WhatsApp", short: "WA", color: "#25A45C", nickPrefix: "wa.me/", nickPlaceholder: "79261234567" },
+  { key: "vk", label: "VK", short: "VK", color: "#3F6FCB", nickPrefix: "vk.com/", nickPlaceholder: "id12345" },
+  { key: "telegram", label: "Telegram", short: "TG", color: "#2AA0DB", nickPrefix: "t.me/", nickPlaceholder: "username" },
+  { key: "line", label: "LINE", short: "LN", color: "#22B14C", nickPrefix: "line.me/ti/p/~", nickPlaceholder: "username" },
 ];
 
 const DEFAULT_CATEGORIES = ["Друзья", "Работа", "Семья", "Нетворкинг"];
