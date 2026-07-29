@@ -59,22 +59,26 @@ function ContactCardBase({ contact, index, selectMode, isSelected, onClick, onMa
       )}
       <div style={styles.cardTopRow}>
         <span style={styles.cardIndex}>{pad(index + 1)}</span>
-        {!selectMode && <ArrowUpRight size={15} color="rgba(11,11,16,0.3)" strokeWidth={2.25} />}
+        <div style={styles.cardTopRight}>
+          {MESSENGERS.some((m) => c.messengers?.[m.key]?.enabled) && (
+            <div style={styles.cardBadgeRow}>
+              {MESSENGERS.filter((m) => c.messengers?.[m.key]?.enabled).map((m) => (
+                <span key={m.key} style={{ ...styles.msgBadge, background: `${m.color}18`, color: m.color }}>{m.short}</span>
+              ))}
+            </div>
+          )}
+          {!selectMode && <ArrowUpRight size={15} color="rgba(11,11,16,0.3)" strokeWidth={2.25} />}
+        </div>
       </div>
       <div style={styles.cardHeaderRow}>
         <div style={styles.avatarBubble}>{c.avatar ? <img src={c.avatar} alt="" style={styles.avatarImg} /> : initials(c)}</div>
         <div style={styles.cardInfoCol}>
           <div style={styles.cardNameCompact}>{c.firstName} {c.lastName}</div>
-          <div style={styles.cardSubtitleCompact}>{[c.job, ...contactCategories(c)].filter(Boolean).join(" · ")}</div>
+          {(c.job || contactCategories(c).length > 0) && (
+            <div style={styles.cardSubtitleCompact}>{[c.job, ...contactCategories(c)].filter(Boolean).join(" · ")}</div>
+          )}
         </div>
       </div>
-      {MESSENGERS.some((m) => c.messengers?.[m.key]?.enabled) && (
-        <div style={styles.cardBadgeRow}>
-          {MESSENGERS.filter((m) => c.messengers?.[m.key]?.enabled).map((m) => (
-            <span key={m.key} style={{ ...styles.msgBadge, background: `${m.color}18`, color: m.color }}>{m.short}</span>
-          ))}
-        </div>
-      )}
 
       {!selectMode && (
         <div style={styles.cardActionsRow}>
