@@ -103,8 +103,11 @@ export default function QuickAddAI({ categories, onClose, onCreate, remainingAi 
 
 Текст пользователя: "${q}"
 
-Ответь СТРОГО в формате JSON без markdown и пояснений вне JSON:
+Сначала проверь, вообще ли этот текст описывает знакомство с человеком (кто-то, с кем познакомились/встретились/договорились и т.п.) — а не что-то не по теме (рецепт, случайный набор слов, погода, техническая инструкция и т.д.). Если текст НЕ про знакомство с человеком — верни ТОЛЬКО {"valid": false, "reason": "короткое пояснение, почему это не похоже на описание знакомства"}, без остальных полей.
+
+Если текст подходит, ответь СТРОГО в формате JSON без markdown и пояснений вне JSON:
 {
+  "valid": true,
   "firstName": "",
   "lastName": "",
   "category": "",
@@ -133,6 +136,14 @@ export default function QuickAddAI({ categories, onClose, onCreate, remainingAi 
       });
       const data = await response.json();
       if (!response.ok || data.error) throw new Error(data.error || "proxy error");
+
+      // Текст не про знакомство с человеком (например, рецепт или случайный
+      // набор слов) — не пытаемся собрать из него контакт, а прямо
+      // объясняем пользователю, что не так, и не переходим на шаг проверки.
+      if (data.valid === false) {
+        setError(sanitizeAiText(data.reason) || "Не похоже, что это описание знакомства с человеком. Опишите, кого вы встретили и что о нём/ней известно.");
+        return;
+      }
 
       const aiComment = sanitizeAiText(data.comment);
       const psychRaw = data.psych && typeof data.psych === "object" ? {
