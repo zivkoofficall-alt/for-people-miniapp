@@ -177,7 +177,34 @@ function sanitizeAiObject(obj) {
   return out;
 }
 
-// Собирает deep-link для кнопки "Написать" на основе предпочтительного
+// Пользователь может вставить в поле "Ник" целую ссылку (скопировал прямо
+// из профиля мессенджера) вместо голого юзернейма — buildContactLink() выше
+// сам добавляет префикс (t.me/, vk.com/, wa.me/, line.me/ti/p/~), так что
+// если оставить вставленную ссылку как есть, получится "битый" двойной URL.
+// Автоматически срезаем известные префиксы (с протоколом или без, включая
+// вариант line.me/ti/p/~) и ведущий "@", оставляя только сам идентификатор.
+const MESSENGER_NICK_PREFIXES = {
+  telegram: [/^https?:\/\/(www\.)?t\.me\//i, /^t\.me\//i, /^@/],
+  vk: [/^https?:\/\/(www\.)?vk\.com\//i, /^vk\.com\//i, /^@/],
+  line: [/^https?:\/\/(www\.)?line\.me\/ti\/p\/~?/i, /^line\.me\/ti\/p\/~?/i, /^@/],
+  whatsapp: [/^https?:\/\/(www\.)?wa\.me\//i, /^wa\.me\//i, /^@/],
+};
+function sanitizeMessengerNick(key, rawValue) {
+  let v = (rawValue || "").trim();
+  const prefixes = MESSENGER_NICK_PREFIXES[key];
+  if (!prefixes) return v;
+  // Несколько проходов: у LINE, например, может встретиться и домен, и "@" разом.
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const re of prefixes) {
+      if (re.test(v)) { v = v.replace(re, ""); changed = true; }
+    }
+  }
+  return v.replace(/\/+$/, "").trim();
+}
+
+
 // способа связи контакта, с fallback на первый доступный вариант.
 function buildContactLink(contact) {
   const m = contact.messengers || {};
@@ -443,4 +470,5 @@ export {
   csvEscape, parseCsv, findColIndex, contactsFromGoogleCsv, resizeImageFile,
   computeHealthMetrics, emptyGoal, computeGoalProgress, emptySubscription, computeContactStats,
   buildContactLink, isSafeContactUrl, sanitizeAiText, sanitizeAiObject, contactCategories,
+  sanitizeMessengerNick,
 };
