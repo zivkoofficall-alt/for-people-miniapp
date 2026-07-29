@@ -461,7 +461,14 @@ function computeContactStats(contacts, tasks) {
 
 // --- Подписка (Модуль 3D) ---
 function emptySubscription() {
-  return { plan: "free", aiRequestsUsed: 0, aiRequestsLimit: 10, renewsAt: null };
+  // channelBonusClaimed — бонус за подписку на Telegram-канал (см.
+  // api/verify-channel-sub.js) уже получен. Намеренно НЕ прибавляется прямо
+  // в aiRequestsLimit при сохранении — App.jsx всегда переустанавливает
+  // aiRequestsLimit из этой функции при загрузке (см. комментарий в App.jsx
+  // рядом с loadWithLegacyMigration("fp_subscription")), так что любой бонус,
+  // "запечённый" прямо в лимит, слетал бы при каждом перезапуске. Вместо
+  // этого effectiveAiLimit в App.jsx = aiRequestsLimit + бонус, если флаг стоит.
+  return { plan: "free", aiRequestsUsed: 0, aiRequestsLimit: 10, renewsAt: null, channelBonusClaimed: false };
 }
 
 export {
