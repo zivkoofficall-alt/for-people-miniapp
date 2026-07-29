@@ -597,11 +597,19 @@ const styles = {
   celebrateSubtitle: { fontSize: 12.5, color: MUTED, lineHeight: 1.4 },
 
   // --- Бонус за подписку на Telegram-канал ---
-  channelBonusCard: { background: "linear-gradient(135deg, rgba(124,77,255,0.10) 0%, rgba(124,77,255,0.04) 100%)", border: "1px solid rgba(124,77,255,0.22)", borderRadius: 16, padding: 14, marginTop: 14, display: "flex", flexDirection: "column", gap: 8 },
-  channelBonusTitle: { display: "flex", alignItems: "center", gap: 6, fontSize: 13.5, fontWeight: 700, color: INK, fontFamily: "'Plus Jakarta Sans', sans-serif" },
-  channelBonusText: { fontSize: 12.5, color: MUTED, lineHeight: 1.45 },
-  channelBonusRow: { display: "flex", gap: 8, marginTop: 2 },
-  channelBonusDone: { display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: "#22A37A" },
+  // Специально НЕ переиспользует primaryPill/secondaryPill (те рассчитаны на
+  // главный CTA — покупку Pro, отсюда их крупный размер) — здесь второстепенная
+  // фича, компактные чипы под масштаб paymentMethodChip/planBadge.
+  channelBonusCard: { background: "#F5F3FA", borderRadius: 16, padding: 14, marginTop: 14, display: "flex", flexDirection: "column", gap: 10 },
+  channelBonusHeadRow: { display: "flex", alignItems: "center", gap: 9 },
+  channelBonusIcon: { width: 26, height: 26, borderRadius: "50%", background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  channelBonusTitle: { flex: 1, fontSize: 13, fontWeight: 700, color: INK, fontFamily: "'Plus Jakarta Sans', sans-serif" },
+  channelBonusAmountBadge: { fontSize: 10.5, fontWeight: 700, color: PURPLE, background: PURPLE_SOFT, borderRadius: 999, padding: "3px 9px", flexShrink: 0 },
+  channelBonusText: { fontSize: 12, color: MUTED, lineHeight: 1.45 },
+  channelBonusRow: { display: "flex", gap: 8 },
+  channelBonusBtnGhost: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, background: "transparent", border: CARD_BORDER, borderRadius: 999, padding: "8px 14px", fontSize: 12, fontWeight: 600, color: INK, fontFamily: "'Inter', sans-serif" },
+  channelBonusBtnSolid: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, background: PURPLE, border: "none", borderRadius: 999, padding: "8px 14px", fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: "'Inter', sans-serif" },
+  channelBonusDone: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: "#22A37A" },
 };
 
 export { globalCss, INK, MUTED, PURPLE, PURPLE_SOFT, PURPLE_GRADIENT, PURPLE_GRADIENT_SHADOW, BG, CARD_BORDER, SHEET_BG, CARD_SHADOW, styles };
