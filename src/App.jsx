@@ -5,11 +5,12 @@ import {
   ChevronLeft, ChevronRight, Briefcase, MapPin, Mail, Heart, Send, Users, Wand2, ListChecks, Gauge, Target, CreditCard, Lock,
 } from "lucide-react";
 import { storage } from "./storage";
-import { MESSENGERS, DEFAULT_CATEGORIES, ENERGY_OPTIONS, TRUST_OPTIONS, STEP_DEFS, DEFAULT_TASK_TYPES } from "./constants.js";
+import { MESSENGERS, DEFAULT_CATEGORIES, ENERGY_OPTIONS, TRUST_OPTIONS, STEP_DEFS, DEFAULT_TASK_TYPES, CHANNEL_URL, CHANNEL_BONUS_AMOUNT } from "./constants.js";
 import { emptyContact, emptyTask, emptyGoal, emptySubscription, computeGoalProgress, buildContactLink, initials, pluralPeople, csvEscape, resizeImageFile, nextRepeatDate, contactCategories, sanitizeMessengerNick } from "./helpers.js";
 import { globalCss, INK, PURPLE, styles } from "./theme.js";
 import { PsychRow, Field, InlineAdd, ConfirmModal, SplashScreen } from "./components/Ui.jsx";
 import ContactCard from "./components/ContactCard.jsx";
+import Celebration from "./components/Celebration.jsx";
 
 // Ленивая загрузка: код AI-помощника и импорта из Google подгружается
 // отдельным чанком только в момент открытия — не увеличивает вес
@@ -54,6 +55,7 @@ export default function ForPeople() {
   const [tasks, setTasks] = useState([]); // NEW — задачи по контактам (Модуль 3A/3B)
   const [taskTypes, setTaskTypes] = useState(DEFAULT_TASK_TYPES); // NEW — редактируемые типы задач (Фаза 1)
   const [goals, setGoals] = useState([]); // NEW — цели (Модуль 3D)
+  const [celebration, setCelebration] = useState(null); // NEW — конфетти при выполнении цели ({ id, title } | null)
   const [subscription, setSubscription] = useState(emptySubscription()); // NEW — тариф/лимит AI (Модуль 3D)
   const [loaded, setLoaded] = useState(false);
   const [showSplash, setShowSplash] = useState(true); // NEW — полноэкранный сплэш при старте (Фаза B)
@@ -650,6 +652,32 @@ export default function ForPeople() {
     const next = goals.map((g) => (g.id === goalId ? { ...g, status: g.status === "done" ? "in_progress" : "done" } : g));
     await persistGoals(next);
   }
+
+  // --- Конфетти при выполнении цели ---
+  // Отслеживаем переход isDone: false → true для КАЖДОЙ цели (и количественной,
+  // и качественной) в одном месте, а не дёргаем анимацию отдельно из каждого
+  // обработчика — иначе пришлось бы дублировать эту логику и в
+  // handleToggleQualDone, и там, где меняются contacts (для количественных
+  // целей "выполнено" — это производное от текущей базы контактов, а не явное
+  // действие пользователя, см. computeGoalProgress). prevGoalDoneRef.current
+  // === null означает "ещё не было ни одного прогона после загрузки данных" —
+  // в этом случае только запоминаем текущее состояние, не показывая анимацию,
+  // иначе она бы срабатывала на каждой уже давно выполненной цели при каждом
+  // открытии приложения.
+  const prevGoalDoneRef = useRef(null);
+  useEffect(() => {
+    if (!loaded) return;
+    const doneMap = {};
+    goals.forEach((g) => { doneMap[g.id] = computeGoalProgress(g, contacts).isDone; });
+    const prev = prevGoalDoneRef.current;
+    if (prev) {
+      const justCompleted = goals.find((g) => doneMap[g.id] && !prev[g.id]);
+      if (justCompleted) {
+        setCelebration({ id: `${justCompleted.id}_${Date.now()}`, title: justCompleted.title });
+      }
+    }
+    prevGoalDoneRef.current = doneMap;
+  }, [goals, contacts, loaded]);
   async function handleDeleteGoal(goalId) {
     await persistGoals(goals.filter((g) => g.id !== goalId));
     showToast("Цель удалена");
@@ -671,8 +699,17 @@ export default function ForPeople() {
   // --- Подписка / лимит AI-запросов (Модуль 3D) ---
   // Реального биллинга здесь нет (см. Profile.jsx) — это только контроль
   // лимита, чтобы демо-режим free-плана имел смысл в интерфейсе.
-  const canUseAi = subscription.plan === "pro" || subscription.aiRequestsUsed < subscription.aiRequestsLimit;
-  const remainingAi = subscription.plan === "pro" ? Infinity : Math.max(0, subscription.aiRequestsLimit - subscription.aiRequestsUsed);
+  // effectiveAiLimit — базовый лимит + бонус за подписку на канал, если он
+  // уже получен. Складываем на лету, а не храним готовую сумму в
+  // subscription.aiRequestsLimit, потому что это поле безусловно
+  // перезаписывается значением по умолчанию при каждой загрузке (см. комментарий
+  // у loadWithLegacyMigration("fp_subscription") выше) — "запечённый" бонус
+  // там бы просто исчезал при следующем открытии приложения.
+  const effectiveAiLimit = subscription.plan === "pro"
+    ? subscription.aiRequestsLimit
+    : subscription.aiRequestsLimit + (subscription.channelBonusClaimed ? CHANNEL_BONUS_AMOUNT : 0);
+  const canUseAi = subscription.plan === "pro" || subscription.aiRequestsUsed < effectiveAiLimit;
+  const remainingAi = subscription.plan === "pro" ? Infinity : Math.max(0, effectiveAiLimit - subscription.aiRequestsUsed);
   async function recordAiUsage() {
     const current = subscriptionRef.current;
     if (current.plan === "pro") return;
@@ -699,6 +736,57 @@ export default function ForPeople() {
     subscriptionRef.current = next;
     await persistSubscription(next);
     showToast("Возвращено на Free Trial");
+  }
+
+  // --- Бонус за подписку на Telegram-канал ---
+  // Возвращает { ok, subscribed, alreadyClaimed, error } — Profile.jsx решает,
+  // какое именно сообщение показать по этим полям (не показываем toast на
+  // каждый промежуточный статус, только когда бонус реально начислен).
+  // Строгая проверка подписки — целиком на бэкенде (api/verify-channel-sub.js,
+  // через Bot API getChatMember), фронтенд НИЧЕГО не решает сам и не может
+  // выдать себе бонус без реальной подписки — initData подписывается Telegram
+  // и проверяется на сервере тем же способом, что и для остальных эндпоинтов
+  // (см. api/_lib/telegramAuth.js).
+  async function handleClaimChannelBonus() {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    const verifyUrl = import.meta.env.VITE_VERIFY_CHANNEL_SUB_URL;
+    if (!tg || !tg.initData) {
+      return { ok: false, error: "Проверка подписки доступна только внутри Telegram." };
+    }
+    if (!verifyUrl) {
+      return { ok: false, error: "Проверка подписки пока не настроена." };
+    }
+    try {
+      const response = await fetch(verifyUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ initData: tg.initData }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) {
+        return { ok: false, error: data.error || "Не получилось проверить подписку." };
+      }
+      // data.alreadyClaimed приходит с сервера (Supabase, если настроен) —
+      // проверяем ЕГО, а не только локальный subscriptionRef.channelBonusClaimed:
+      // если бы полагались только на локальный флаг, сброс CloudStorage/
+      // localStorage пользователем позволил бы получать бонус повторно
+      // при каждом сбросе, хотя подписка та же самая.
+      if (data.subscribed && !data.alreadyClaimed) {
+        const next = { ...subscriptionRef.current, channelBonusClaimed: true };
+        subscriptionRef.current = next;
+        await persistSubscription(next);
+        showToast(`+${CHANNEL_BONUS_AMOUNT} AI-запросов начислено 🎉`);
+      } else if (data.subscribed && data.alreadyClaimed && !subscriptionRef.current.channelBonusClaimed) {
+        // Локальный флаг был сброшен, но сервер помнит — синхронизируем,
+        // не начисляя бонус повторно.
+        const next = { ...subscriptionRef.current, channelBonusClaimed: true };
+        subscriptionRef.current = next;
+        await persistSubscription(next);
+      }
+      return { ok: true, subscribed: !!data.subscribed, alreadyClaimed: !!data.alreadyClaimed };
+    } catch (e) {
+      return { ok: false, error: "Не получилось проверить подписку. Попробуйте ещё раз." };
+    }
   }
 
   const avatarStack = contacts.slice(0, 4);
@@ -1358,17 +1446,27 @@ export default function ForPeople() {
         <Suspense fallback={<LazyFallback />}>
           <Profile
             subscription={subscription}
+            aiRequestsLimit={effectiveAiLimit}
             contacts={contacts}
             tasks={tasks}
             onClose={() => setProfileOpen(false)}
             onActivateDemoPro={handleActivateDemoPro}
             onActivateProViaStars={handleActivateProViaStars}
             onDowngradeToFree={handleDowngradeToFree}
+            onClaimChannelBonus={handleClaimChannelBonus}
           />
         </Suspense>
       )}
 
       {toast && <div className="fp-slideup" style={styles.toast}>{toast}</div>}
+
+      {celebration && (
+        <Celebration
+          key={celebration.id}
+          title={celebration.title}
+          onDone={() => setCelebration(null)}
+        />
+      )}
     </div>
   );
 }
