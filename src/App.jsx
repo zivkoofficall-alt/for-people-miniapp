@@ -836,7 +836,12 @@ export default function ForPeople() {
               {homeGoals.map((g) => {
                 const pct = computeGoalProgress(g, contacts).pct;
                 return (
-                  <button key={g.id} className="fp-btn" style={styles.goalStripCardSmall} onClick={() => setGoalsOpen(true)}>
+                  <button
+                    key={g.id}
+                    className="fp-btn"
+                    style={{ ...styles.goalStripCardSmall, ...(homeGoals.length === 1 ? { gridColumn: "1 / -1" } : {}) }}
+                    onClick={() => setGoalsOpen(true)}
+                  >
                     <div style={styles.goalStripSmallTop}>
                       <div style={styles.goalStripIconSmall}><Target size={12} color="#7C4DFF" /></div>
                       <span style={styles.goalStripSmallTitle}>{g.title}</span>
