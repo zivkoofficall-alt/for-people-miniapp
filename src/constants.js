@@ -76,4 +76,12 @@ const PAYMENT_METHODS = [
   // { key: "sbp", label: "СБП" },
 ];
 
-export { MESSENGERS, DEFAULT_CATEGORIES, ENERGY_OPTIONS, TRUST_OPTIONS, STEP_DEFS, AI_SUGGESTIONS, TASK_TYPES, TASK_TYPE_COLORS, DEFAULT_TASK_TYPES, TASK_TYPE_PALETTE, STATUS_COLUMNS, PLAN_FEATURES, PRO_PRICE_LABEL, PRO_PRICE_STARS, PRO_PRICE_STARS_OLD, PAYMENT_METHODS };
+// --- Бонус за подписку на Telegram-канал ---
+// Ссылка должна быть публичным username-каналом (или t.me/c/... для приватного,
+// но тогда getChatMember тоже сработает только если бот — участник/админ этого
+// канала, см. api/verify-channel-sub.js). Проверка подписки строго на бэкенде —
+// фронтенд её не может подделать, см. комментарии в api/verify-channel-sub.js.
+const CHANNEL_URL = "https://t.me/people_circle";
+const CHANNEL_BONUS_AMOUNT = 5;
+
+export { MESSENGERS, DEFAULT_CATEGORIES, ENERGY_OPTIONS, TRUST_OPTIONS, STEP_DEFS, AI_SUGGESTIONS, TASK_TYPES, TASK_TYPE_COLORS, DEFAULT_TASK_TYPES, TASK_TYPE_PALETTE, STATUS_COLUMNS, PLAN_FEATURES, PRO_PRICE_LABEL, PRO_PRICE_STARS, PRO_PRICE_STARS_OLD, PAYMENT_METHODS, CHANNEL_URL, CHANNEL_BONUS_AMOUNT };
