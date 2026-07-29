@@ -148,7 +148,7 @@ function TaskRow({ task, contact, typeInfo, onToggleDone, onToggleImportant, onR
       </div>
       <div
         className="fp-card"
-        style={{ ...styles.taskRow, transform: `translateX(${dragX}px)`, transition: dragging ? "none" : "transform .2s ease" }}
+        style={{ ...styles.taskRow, borderTop: `3px solid ${color}`, transform: `translateX(${dragX}px)`, transition: dragging ? "none" : "transform .2s ease" }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
