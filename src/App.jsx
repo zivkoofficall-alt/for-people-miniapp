@@ -679,15 +679,12 @@ export default function ForPeople() {
 
   const avatarStack = contacts.slice(0, 4);
   const lastContact = contacts.length > 0 ? [...contacts].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0] : null;
-  // activeGoal должен показывать первую ещё не выполненную цель. Раньше это
-  // проверялось через goal.status !== "done" — но status в "done" переводится
-  // только вручную, только для качественных целей (см. handleToggleQualDone).
-  // Количественная цель, план по которой уже выполнен (current >= target),
-  // никогда не получает status "done" сама по себе — и оставалась бы приколотой
-  // на полосе "Активная цель" на главном экране навечно, даже на 100%.
-  // computeGoalProgress().isDone уже верно считает готовность для обоих типов
-  // целей — используем его вместо сырого поля status.
-  const activeGoal = goals.find((g) => !computeGoalProgress(g, contacts).isDone) || null;
+  // activeGoals — все ещё не выполненные цели (раньше был только первый —
+  // activeGoal, из-за чего на главном экране показывалась только одна
+  // цель, даже если пользователь завёл несколько). computeGoalProgress()
+  // уже верно считает готовность для обоих типов целей (количественных и
+  // качественных) — используем его вместо сырого поля status.
+  const activeGoals = goals.filter((g) => !computeGoalProgress(g, contacts).isDone);
 
   // --- Auth Gate (Модуль Фаза C) ---
   // Если initData отсутствует — приложение открыто не через Telegram
@@ -816,17 +813,37 @@ export default function ForPeople() {
             </div>
           </div>
 
-          {activeGoal && (
+          {activeGoals.length === 1 && (
             <button className="fp-btn" style={styles.goalStripCard} onClick={() => setGoalsOpen(true)}>
               <div style={styles.goalStripIcon}><Target size={15} color="#7C4DFF" /></div>
               <div style={styles.goalStripBody}>
-                <div style={styles.goalStripTitle}>{activeGoal.title}</div>
+                <div style={styles.goalStripTitle}>{activeGoals[0].title}</div>
                 <div style={styles.goalStripTrack}>
-                  <div style={{ ...styles.goalStripFill, width: `${computeGoalProgress(activeGoal, contacts).pct}%` }} />
+                  <div style={{ ...styles.goalStripFill, width: `${computeGoalProgress(activeGoals[0], contacts).pct}%` }} />
                 </div>
               </div>
-              <span style={styles.goalStripPct}>{computeGoalProgress(activeGoal, contacts).pct}%</span>
+              <span style={styles.goalStripPct}>{computeGoalProgress(activeGoals[0], contacts).pct}%</span>
             </button>
+          )}
+
+          {activeGoals.length >= 2 && (
+            <div style={styles.goalStripGrid}>
+              {activeGoals.map((g) => {
+                const pct = computeGoalProgress(g, contacts).pct;
+                return (
+                  <button key={g.id} className="fp-btn" style={styles.goalStripCardSmall} onClick={() => setGoalsOpen(true)}>
+                    <div style={styles.goalStripSmallTop}>
+                      <div style={styles.goalStripIconSmall}><Target size={12} color="#7C4DFF" /></div>
+                      <span style={styles.goalStripSmallTitle}>{g.title}</span>
+                    </div>
+                    <div style={styles.goalStripTrack}>
+                      <div style={{ ...styles.goalStripFill, width: `${pct}%` }} />
+                    </div>
+                    <span style={styles.goalStripSmallPct}>{pct}%</span>
+                  </button>
+                );
+              })}
+            </div>
           )}
 
           <div style={styles.searchBar}>
