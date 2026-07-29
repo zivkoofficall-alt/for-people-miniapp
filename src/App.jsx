@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { storage } from "./storage";
 import { MESSENGERS, DEFAULT_CATEGORIES, ENERGY_OPTIONS, TRUST_OPTIONS, STEP_DEFS, DEFAULT_TASK_TYPES } from "./constants.js";
-import { emptyContact, emptyTask, emptyGoal, emptySubscription, computeGoalProgress, buildContactLink, initials, pluralPeople, csvEscape, resizeImageFile, nextRepeatDate, contactCategories } from "./helpers.js";
+import { emptyContact, emptyTask, emptyGoal, emptySubscription, computeGoalProgress, buildContactLink, initials, pluralPeople, csvEscape, resizeImageFile, nextRepeatDate, contactCategories, sanitizeMessengerNick } from "./helpers.js";
 import { globalCss, INK, PURPLE, styles } from "./theme.js";
 import { PsychRow, Field, InlineAdd, ConfirmModal, SplashScreen } from "./components/Ui.jsx";
 import ContactCard from "./components/ContactCard.jsx";
@@ -388,7 +388,8 @@ export default function ForPeople() {
     setDrafting((d) => ({ ...d, messengers: { ...d.messengers, [key]: { ...d.messengers[key], enabled: !d.messengers[key].enabled } } }));
   }
   function updateMessengerField(key, field, value) {
-    setDrafting((d) => ({ ...d, messengers: { ...d.messengers, [key]: { ...d.messengers[key], [field]: value } } }));
+    const clean = field === "nick" ? sanitizeMessengerNick(key, value) : value;
+    setDrafting((d) => ({ ...d, messengers: { ...d.messengers, [key]: { ...d.messengers[key], [field]: clean } } }));
   }
   function toggleDraftTag(t) {
     setDrafting((d) => { const has = d.tags.includes(t); return { ...d, tags: has ? d.tags.filter((x) => x !== t) : [...d.tags, t] }; });
@@ -505,16 +506,17 @@ export default function ForPeople() {
   }
 
   // Принимает "parsed" от QuickAddAI: {firstName,lastName,category,tags,job,
-  // interests,helpWith,comment,task}. Здесь и только здесь превращаем это
-  // в настоящий Contact/Task и сохраняем — компонент виджета ничего не пишет
-  // в storage сам, только собирает и валидирует данные.
+  // interests,helpWith,comment,task,psych}. Здесь и только здесь превращаем
+  // это в настоящий Contact/Task и сохраняем — компонент виджета ничего не
+  // пишет в storage сам, только собирает и валидирует данные.
   async function handleQuickAddCreate(parsed) {
     if (!parsed.firstName.trim() && !parsed.lastName.trim()) {
       showToast("AI не распознал имя — откройте карточку и впишите вручную.");
     }
     const parsedCategory = (parsed.category || "").trim();
+    const base = emptyContact();
     const newContact = {
-      ...emptyContact(),
+      ...base,
       firstName: parsed.firstName.trim(),
       lastName: parsed.lastName.trim(),
       categories: parsedCategory ? [parsedCategory] : [],
@@ -523,6 +525,10 @@ export default function ForPeople() {
       interests: (parsed.interests || "").trim(),
       helpWith: (parsed.helpWith || "").trim(),
       comment: (parsed.comment || "").trim(),
+      // Психологический портрет — только если AI реально его собрал (текста
+      // хватило); остальные psych-поля (доверие, энергия и т.д.) остаются
+      // пустыми, как в base, — их AI не пытается угадывать.
+      psych: parsed.psych ? { ...base.psych, ...parsed.psych } : base.psych,
     };
     await persistContacts([...contacts, newContact]);
     if (parsedCategory && !categories.includes(parsedCategory)) {
@@ -1151,9 +1157,12 @@ export default function ForPeople() {
                     <div key={m.key} className="fp-slideup" style={styles.messengerFieldsRow}>
                       <div style={styles.messengerFieldsLabel}>{m.label} — заполните хотя бы одно поле</div>
                       <div className="fp-pair-row">
-                        <Field label="Ник" value={drafting.messengers[m.key].nick} onChange={(v) => updateMessengerField(m.key, "nick", v)} placeholder="@username" compact />
+                        <Field label="Ник" value={drafting.messengers[m.key].nick} onChange={(v) => updateMessengerField(m.key, "nick", v)} placeholder={m.nickPrefix ? `${m.nickPrefix}${m.nickPlaceholder}` : "@username"} compact />
                         <Field label="Телефон" value={drafting.messengers[m.key].phone} onChange={(v) => updateMessengerField(m.key, "phone", v)} placeholder="+7 (900) 000…" compact phoneMask />
                       </div>
+                      {m.nickPrefix && (
+                        <div style={styles.messengerPrefixHint}>Вставьте только {m.key === "whatsapp" ? "номер" : "юзернейм/id"} — ссылку {m.nickPrefix}… соберём сами; если вставите готовую ссылку, префикс срежем автоматически.</div>
+                      )}
                     </div>
                   ))}
                   {MESSENGERS.every((m) => !drafting.messengers[m.key].enabled) && <div style={styles.emptyHintSmall}>Выберите хотя бы один мессенджер, если хотите его сохранить</div>}
