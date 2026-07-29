@@ -4,7 +4,7 @@ import { styles } from "../theme.js";
 import { computeGoalProgress } from "../helpers.js";
 import { Field } from "./Ui.jsx";
 
-function GoalCard({ goal, contacts, onToggleQualDone, onDelete, onEdit }) {
+function GoalCard({ goal, contacts, onToggleQualDone, onDelete, onEdit, showPinToggle, onTogglePinned }) {
   const progress = computeGoalProgress(goal, contacts);
   function handleDeleteClick(e) {
     e.stopPropagation();
@@ -13,6 +13,10 @@ function GoalCard({ goal, contacts, onToggleQualDone, onDelete, onEdit }) {
   function handleToggleClick(e) {
     e.stopPropagation();
     onToggleQualDone(goal.id);
+  }
+  function handlePinClick(e) {
+    e.stopPropagation();
+    onTogglePinned(goal.id);
   }
   return (
     <div className="fp-btn" style={styles.goalCard} onClick={() => onEdit(goal)} role="button" tabIndex={0}>
@@ -50,6 +54,20 @@ function GoalCard({ goal, contacts, onToggleQualDone, onDelete, onEdit }) {
             <span style={{ minWidth: 34, textAlign: "right" }}>{progress.pct}%</span>
           </div>
         </>
+      )}
+      {showPinToggle && (
+        <div style={styles.goalPinRow} onClick={(e) => e.stopPropagation()}>
+          <span style={styles.goalPinLabel}>На главном экране</span>
+          <button
+            className="fp-btn"
+            style={{ ...styles.goalPinSwitch, ...(goal.pinnedOnHome ? styles.goalPinSwitchActive : {}) }}
+            onClick={handlePinClick}
+            aria-label="Показывать цель на главном экране"
+            aria-pressed={!!goal.pinnedOnHome}
+          >
+            <span style={{ ...styles.goalPinKnob, ...(goal.pinnedOnHome ? styles.goalPinKnobActive : {}) }} />
+          </button>
+        </div>
       )}
       <div style={styles.goalEditHint}>Нажмите, чтобы изменить</div>
     </div>
@@ -146,13 +164,14 @@ function NewGoalForm({ categories, tags, initialGoal, onCancel, onCreate, onSave
   );
 }
 
-export default function Goals({ goals, contacts, categories, tags, onClose, onCreateGoal, onUpdateGoal, onToggleQualDone, onDeleteGoal }) {
+export default function Goals({ goals, contacts, categories, tags, onClose, onCreateGoal, onUpdateGoal, onToggleQualDone, onDeleteGoal, onTogglePinned }) {
   const [addingOpen, setAddingOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState(null);
   const [closing, setClosing] = useState(false);
   function handleClose() { setClosing(true); setTimeout(onClose, 180); }
 
   const formOpen = addingOpen || !!editingGoal;
+  const activeCount = goals.filter((g) => !computeGoalProgress(g, contacts).isDone).length;
 
   function closeForm() {
     setAddingOpen(false);
@@ -187,13 +206,28 @@ export default function Goals({ goals, contacts, categories, tags, onClose, onCr
             {goals.length === 0 ? (
               <div style={{ ...styles.emptyHint, marginTop: 16 }}>Пока нет целей — добавьте первую, чтобы отслеживать прогресс по сети контактов.</div>
             ) : (
-              <div style={{ ...styles.goalsGrid, marginTop: 16 }}>
-                {goals.map((g) => (
-                  <div key={g.id} style={goals.length === 1 ? { gridColumn: "1 / -1" } : undefined}>
-                    <GoalCard goal={g} contacts={contacts} onToggleQualDone={onToggleQualDone} onDelete={onDeleteGoal} onEdit={setEditingGoal} />
+              <>
+                {activeCount > 2 && (
+                  <div style={{ ...styles.goalsPinHint, marginTop: 16 }}>
+                    Активных целей больше двух — на главном экране автоматически они не показываются. Выберите до двух целей переключателем «На главном экране» на карточке цели.
                   </div>
-                ))}
-              </div>
+                )}
+                <div style={{ ...styles.goalsGrid, marginTop: activeCount > 2 ? 10 : 16 }}>
+                  {goals.map((g) => (
+                    <div key={g.id} style={goals.length === 1 ? { gridColumn: "1 / -1" } : undefined}>
+                      <GoalCard
+                        goal={g}
+                        contacts={contacts}
+                        onToggleQualDone={onToggleQualDone}
+                        onDelete={onDeleteGoal}
+                        onEdit={setEditingGoal}
+                        showPinToggle={activeCount > 2 && !computeGoalProgress(g, contacts).isDone}
+                        onTogglePinned={onTogglePinned}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </>
         )}
