@@ -66,6 +66,7 @@ export default function ForPeople() {
   const [openId, setOpenId] = useState(null);
   const [drafting, setDrafting] = useState(null);
   const [step, setStep] = useState(0);
+  const [tagsChipsExpanded, setTagsChipsExpanded] = useState(false); // NEW — теги в форме контакта: сначала первые 5, дальше по кнопке
   const [toast, setToast] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
@@ -143,7 +144,7 @@ export default function ForPeople() {
   // кнопка становится белой, иначе — обычной фиолетовой. Переход анимируется
   // плавным fade (см. fabWhiteOverlay), а не мгновенной сменой цвета.
   const heroPanelRef = useRef(null);
-  const [fabOnPurple, setFabOnPurple] = useState({ main: true, secondary: true });
+  const [fabOnPurple, setFabOnPurple] = useState({ main: false, secondary: false });
   useEffect(() => {
     function updateFabColors() {
       const panel = heroPanelRef.current;
@@ -340,8 +341,8 @@ export default function ForPeople() {
 
   const openContact = openId ? contacts.find((c) => c.id === openId) : null;
 
-  function startNew() { setDrafting(emptyContact()); setStep(0); }
-  function startEdit(c) { setDrafting(JSON.parse(JSON.stringify(c))); setStep(0); setOpenId(null); }
+  function startNew() { setDrafting(emptyContact()); setStep(0); setTagsChipsExpanded(false); }
+  function startEdit(c) { setDrafting(JSON.parse(JSON.stringify(c))); setStep(0); setOpenId(null); setTagsChipsExpanded(false); }
 
   function validateDraft(d) {
     if (!d.firstName.trim() && !d.lastName.trim()) return { msg: "Укажите имя или фамилию", step: 0 };
@@ -1126,9 +1127,12 @@ export default function ForPeople() {
                   <InlineAdd placeholder="Новая категория" onAdd={async (v) => { const n = v.trim(); await addNewCategory(n); if (n) setDrafting((d) => ({ ...d, categories: Array.from(new Set([...(d.categories || []), n])) })); }} />
                   <div style={styles.sectionLabel}>Теги</div>
                   <div style={styles.chipWrap}>
-                    {tags.map((t) => (
+                    {(tagsChipsExpanded ? tags : tags.slice(0, 5)).map((t) => (
                       <button key={t} className="fp-btn" style={{ ...styles.pickChip, ...(drafting.tags.includes(t) ? styles.pickChipActive : {}) }} onClick={() => toggleDraftTag(t)}>#{t}</button>
                     ))}
+                    {!tagsChipsExpanded && tags.length > 5 && (
+                      <button className="fp-btn" style={styles.pickChip} onClick={() => setTagsChipsExpanded(true)}>Показать ещё ({tags.length - 5})</button>
+                    )}
                   </div>
                   <InlineAdd placeholder="Новый тег" onAdd={async (v) => { await addNewTag(v); toggleDraftTag(v.trim()); }} />
                 </>
