@@ -154,21 +154,25 @@ export default function Profile({ subscription, aiRequestsLimit, contacts, tasks
 
         {!isPro && (
           <div style={styles.channelBonusCard}>
-            <div style={styles.channelBonusTitle}><Gift size={15} color={PURPLE} />Бонус за подписку на канал</div>
+            <div style={styles.channelBonusHeadRow}>
+              <div style={styles.channelBonusIcon}><Gift size={13} color={PURPLE} /></div>
+              <div style={styles.channelBonusTitle}>Бонус за подписку на канал</div>
+              {!subscription.channelBonusClaimed && <span style={styles.channelBonusAmountBadge}>+{CHANNEL_BONUS_AMOUNT}</span>}
+            </div>
+
             {subscription.channelBonusClaimed ? (
-              <div style={styles.channelBonusDone}><CheckCircle2 size={15} />Бонус получен — +{CHANNEL_BONUS_AMOUNT} AI-запросов уже в вашем лимите</div>
+              <div style={styles.channelBonusDone}><CheckCircle2 size={14} />Получено — уже добавлено в ваш лимит</div>
             ) : (
               <>
                 <div style={styles.channelBonusText}>
-                  Подпишитесь на канал for people — получите +{CHANNEL_BONUS_AMOUNT} бесплатных AI-запросов.
-                  Подписка проверяется по вашему Telegram-аккаунту, накрутить нельзя.
+                  Подпишитесь на канал for people — подписка проверяется по вашему Telegram-аккаунту, накрутить нельзя.
                 </div>
                 <div style={styles.channelBonusRow}>
-                  <button className="fp-btn" style={{ ...styles.secondaryPill, flex: 1 }} onClick={handleOpenChannel}>
-                    <ExternalLink size={13} /> Открыть канал
+                  <button className="fp-btn" style={styles.channelBonusBtnGhost} onClick={handleOpenChannel}>
+                    <ExternalLink size={12} /> Открыть канал
                   </button>
-                  <button className="fp-btn" style={{ ...styles.primaryPill, flex: 1 }} onClick={handleCheckChannelSub} disabled={channelChecking}>
-                    {channelChecking ? <Loader2 size={13} className="fp-pulse" /> : <Check size={13} />}
+                  <button className="fp-btn" style={styles.channelBonusBtnSolid} onClick={handleCheckChannelSub} disabled={channelChecking}>
+                    {channelChecking ? <Loader2 size={12} className="fp-pulse" /> : <Check size={12} />}
                     {channelChecking ? "Проверяем…" : "Я подписался"}
                   </button>
                 </div>
