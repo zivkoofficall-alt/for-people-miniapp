@@ -1,10 +1,23 @@
 import React, { useState, useRef, useEffect } from "react";
-import { X, Wand2, Mic, Square, Sparkles, CalendarDays } from "lucide-react";
+import { X, Wand2, Mic, Square, Sparkles, CalendarDays, Brain } from "lucide-react";
 import { styles } from "../theme.js";
 import { TASK_TYPES } from "../constants.js";
 import { sanitizeAiText } from "../helpers.js";
+import { ConfirmModal } from "./Ui.jsx";
 
 const EXAMPLE = "Например: «Познакомился с Игорем на конференции. Он SEO-специалист, любит хайкинг, обещал скинуть чек-лист по аудиту к пятнице»";
+
+// Подписи для полей психологического портрета (Фаза D) — те же ключи, что
+// и в App.jsx/helpers.js emptyContact().psych, чтобы форма контакта потом
+// показывала ровно то же самое.
+const PSYCH_LABELS = {
+  personality: "Тип личности / характер",
+  values: "Ценности и мотивация",
+  commStyle: "Как лучше общаться",
+  triggers: "Триггеры / чувствительные темы",
+  conflictStyle: "Поведение в конфликте",
+  howMet: "Как познакомились",
+};
 
 export default function QuickAddAI({ categories, onClose, onCreate, remainingAi = Infinity, onUseAi, onOpenProfile }) {
   const [step, setStep] = useState("input"); // 'input' | 'review'
@@ -14,6 +27,8 @@ export default function QuickAddAI({ categories, onClose, onCreate, remainingAi 
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState("");
   const [parsed, setParsed] = useState(null);
+  const [voiceWarning, setVoiceWarning] = useState(""); // NEW — речь распознана нечётко/неполно (Фаза D)
+  const [confirmUnclearOpen, setConfirmUnclearOpen] = useState(false); // NEW — подтверждение продолжить с невнятной речью
   const recognitionRef = useRef(null);
   const blocked = remainingAi <= 0;
   const [closing, setClosing] = useState(false);
@@ -28,10 +43,26 @@ export default function QuickAddAI({ categories, onClose, onCreate, remainingAi 
     rec.continuous = false;
     rec.interimResults = false;
     rec.onresult = (e) => {
-      const transcript = Array.from(e.results).map((r) => r[0].transcript).join(" ");
+      const results = Array.from(e.results);
+      const transcript = results.map((r) => r[0].transcript).join(" ").trim();
+      // Confidence не всегда поддерживается движком распознавания (часть
+      // браузеров всегда отдаёт 0/undefined) — учитываем её, только если
+      // реально пришло осмысленное значение, иначе ориентируемся на длину
+      // распознанного текста: 1-2 слова обычно значит, что микрофон не
+      // расслышал большую часть фразы.
+      const confidences = results.map((r) => r[0].confidence).filter((c) => typeof c === "number" && c > 0);
+      const avgConfidence = confidences.length ? confidences.reduce((a, b) => a + b, 0) / confidences.length : null;
+      const wordCount = transcript.split(/\s+/).filter(Boolean).length;
+      const unclear = !!transcript && ((avgConfidence !== null && avgConfidence < 0.55) || wordCount < 3);
+      setVoiceWarning(unclear ? "Речь распознана не полностью или нечётко. Проверьте и дополните текст ниже вручную, прежде чем нажать «Разобрать с AI»." : "");
       setText((prev) => (prev ? `${prev} ${transcript}` : transcript));
     };
-    rec.onerror = () => setListening(false);
+    rec.onerror = (e) => {
+      setListening(false);
+      if (e.error === "no-speech") {
+        setVoiceWarning("Не расслышал речь — попробуйте ещё раз поближе к микрофону или напечатайте текст вручную.");
+      }
+    };
     rec.onend = () => setListening(false);
     recognitionRef.current = rec;
     return () => { try { rec.stop(); } catch (e) {} };
@@ -43,7 +74,14 @@ export default function QuickAddAI({ categories, onClose, onCreate, remainingAi 
     else { setListening(true); try { recognitionRef.current.start(); } catch (e) { setListening(false); } }
   }
 
-  async function handleParse() {
+  function handleParseClick() {
+    const q = text.trim();
+    if (!q || parsing || blocked) return;
+    if (voiceWarning) { setConfirmUnclearOpen(true); return; }
+    doParse();
+  }
+
+  async function doParse() {
     const q = text.trim();
     if (!q || parsing || blocked) return;
     setParsing(true);
@@ -75,8 +113,18 @@ export default function QuickAddAI({ categories, onClose, onCreate, remainingAi 
   "interests": "",
   "helpWith": "",
   "comment": "краткая заметка о знакомстве своими словами (2-3 предложения)",
-  "task": null или {"title": "...", "type": "follow_up|promise|intro", "dueDate": "YYYY-MM-DD или null"}
-}`;
+  "task": null или {"title": "...", "type": "follow_up|promise|intro", "dueDate": "YYYY-MM-DD или null"},
+  "psych": null или {"personality": "", "values": "", "commStyle": "", "triggers": "", "conflictStyle": "", "howMet": ""}
+}
+
+Про поле "psych" (психологический портрет): заполняй его ТОЛЬКО если в тексте
+реально достаточно материала — описание характера, поведения, ценностей,
+манеры общения (обычно это несколько развёрнутых предложений, не пара слов
+"познакомились в кафе"). Если фактов мало или они только о профессии/месте
+знакомства — верни "psych": null, ничего не придумывая от себя. Каждое
+заполненное подполе — 1 короткое предложение, строго на основе того, что
+написал пользователь, без домыслов. Не заполняй подполе, если для него нет
+опоры в тексте — оставь его пустой строкой.`;
 
       const response = await fetch(proxyUrl, {
         method: "POST",
@@ -87,6 +135,17 @@ export default function QuickAddAI({ categories, onClose, onCreate, remainingAi 
       if (!response.ok || data.error) throw new Error(data.error || "proxy error");
 
       const aiComment = sanitizeAiText(data.comment);
+      const psychRaw = data.psych && typeof data.psych === "object" ? {
+        personality: sanitizeAiText(data.psych.personality),
+        values: sanitizeAiText(data.psych.values),
+        commStyle: sanitizeAiText(data.psych.commStyle),
+        triggers: sanitizeAiText(data.psych.triggers),
+        conflictStyle: sanitizeAiText(data.psych.conflictStyle),
+        howMet: sanitizeAiText(data.psych.howMet),
+      } : null;
+      // Портрет прикладываем, только если AI реально заполнил хотя бы одно
+      // подполе — иначе это просто девять пустых строк и нечего показывать.
+      const psych = psychRaw && Object.values(psychRaw).some(Boolean) ? psychRaw : null;
       setParsed({
         firstName: sanitizeAiText(data.firstName),
         lastName: sanitizeAiText(data.lastName),
@@ -103,6 +162,7 @@ export default function QuickAddAI({ categories, onClose, onCreate, remainingAi 
         // системные/исходные данные с полем пользовательского ввода.
         comment: aiComment,
         originalText: aiComment ? "" : q,
+        psych,
         task: data.task && data.task.title ? {
           title: sanitizeAiText(data.task.title),
           type: TASK_TYPES.some((t) => t.key === data.task.type) ? data.task.type : "follow_up",
@@ -120,6 +180,7 @@ export default function QuickAddAI({ categories, onClose, onCreate, remainingAi 
 
   function updateParsed(patch) { setParsed((p) => ({ ...p, ...patch })); }
   function updateTask(patch) { setParsed((p) => ({ ...p, task: p.task ? { ...p.task, ...patch } : patch })); }
+  function updatePsych(patch) { setParsed((p) => ({ ...p, psych: p.psych ? { ...p.psych, ...patch } : patch })); }
 
   function handleConfirm() {
     if (!parsed) return;
@@ -143,7 +204,7 @@ export default function QuickAddAI({ categories, onClose, onCreate, remainingAi 
             <textarea
               style={styles.quickAddTextarea}
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => { setText(e.target.value); if (voiceWarning) setVoiceWarning(""); }}
               placeholder="Печатайте или наговорите голосом…"
             />
             <div style={styles.micRow}>
@@ -163,6 +224,7 @@ export default function QuickAddAI({ categories, onClose, onCreate, remainingAi 
                 <div style={styles.micHint}>{listening ? "Слушаю… нажмите ещё раз, чтобы остановить" : "Нажмите на микрофон и говорите"}</div>
               )}
             </div>
+            {voiceWarning && <div style={styles.voiceWarningBanner}>⚠️ {voiceWarning}</div>}
             <div style={styles.quickAddExample}>{EXAMPLE}</div>
             {blocked && (
               <div style={styles.aiBlockedCard}>
@@ -173,10 +235,19 @@ export default function QuickAddAI({ categories, onClose, onCreate, remainingAi 
             {error && <div style={styles.importError}>{error}</div>}
             <div style={{ ...styles.detailActions, marginTop: 18 }}>
               <button className="fp-btn" style={styles.secondaryPill} onClick={handleClose}>Отмена</button>
-              <button className="fp-btn" style={styles.primaryPill} onClick={handleParse} disabled={parsing || !text.trim() || blocked}>
+              <button className="fp-btn" style={styles.primaryPill} onClick={handleParseClick} disabled={parsing || !text.trim() || blocked}>
                 {parsing ? "Разбираю…" : (<><Sparkles size={14} /> Разобрать с AI</>)}
               </button>
             </div>
+            <ConfirmModal
+              open={confirmUnclearOpen}
+              title="Речь распозналась не полностью"
+              hint="Похоже, часть сказанного не расслышана, или текст получился слишком коротким. Проверьте его выше — можно дописать вручную, прежде чем отправлять на разбор. Продолжить как есть?"
+              confirmLabel="Продолжить как есть"
+              cancelLabel="Проверю текст"
+              onConfirm={() => { setConfirmUnclearOpen(false); setVoiceWarning(""); doParse(); }}
+              onCancel={() => setConfirmUnclearOpen(false)}
+            />
           </div>
         )}
 
@@ -241,6 +312,22 @@ export default function QuickAddAI({ categories, onClose, onCreate, remainingAi 
                   Использовать как заметку
                 </button>
               </div>
+            )}
+
+            {parsed.psych && (
+              <>
+                <div style={styles.sectionLabel}><Brain size={12} style={{ marginRight: 4, verticalAlign: -2 }} />Психологический портрет (по вашему описанию)</div>
+                <div style={styles.taskPreviewCard}>
+                  <div style={styles.taskPreviewLabel}>Текста было достаточно, чтобы AI собрал черновик портрета — проверьте и поправьте, остальное можно дописать позже в карточке контакта</div>
+                  {Object.entries(PSYCH_LABELS).filter(([key]) => parsed.psych[key]).map(([key, label]) => (
+                    <label key={key} style={styles.fieldWrap}>
+                      <span style={styles.fieldLabel}>{label}</span>
+                      <textarea style={{ ...styles.fieldInput, height: 42, resize: "none" }} value={parsed.psych[key]} onChange={(e) => updatePsych({ [key]: e.target.value })} />
+                    </label>
+                  ))}
+                  <button className="fp-btn" style={styles.secondaryPill} onClick={() => setParsed({ ...parsed, psych: null })}>Не сохранять портрет</button>
+                </div>
+              </>
             )}
 
             {parsed.task && (
