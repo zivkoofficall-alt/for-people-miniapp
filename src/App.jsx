@@ -831,20 +831,7 @@ export default function ForPeople() {
             </div>
           </div>
 
-          {homeGoals.length === 1 && (
-            <button className="fp-btn" style={styles.goalStripCard} onClick={() => setGoalsOpen(true)}>
-              <div style={styles.goalStripIcon}><Target size={15} color="#7C4DFF" /></div>
-              <div style={styles.goalStripBody}>
-                <div style={styles.goalStripTitle}>{homeGoals[0].title}</div>
-                <div style={styles.goalStripTrack}>
-                  <div style={{ ...styles.goalStripFill, width: `${computeGoalProgress(homeGoals[0], contacts).pct}%` }} />
-                </div>
-              </div>
-              <span style={styles.goalStripPct}>{computeGoalProgress(homeGoals[0], contacts).pct}%</span>
-            </button>
-          )}
-
-          {homeGoals.length >= 2 && (
+          {homeGoals.length >= 1 && (
             <div style={styles.goalStripGrid}>
               {homeGoals.map((g) => {
                 const pct = computeGoalProgress(g, contacts).pct;
