@@ -427,6 +427,15 @@ const styles = {
   goalStripTrack: { width: "100%", boxSizing: "border-box", height: 5, borderRadius: 999, background: "rgba(11,11,16,0.08)", overflow: "hidden", marginTop: 5 },
   goalStripFill: { height: "100%", borderRadius: 999, background: PURPLE },
   goalStripPct: { fontSize: 12, fontWeight: 700, color: PURPLE, flexShrink: 0, minWidth: 34, textAlign: "right" },
+  // Компактные карточки для главного экрана, когда активных целей две и
+  // больше — рядом по 2 в ряд, вместо одной широкой полосы (которая
+  // раньше показывала только первую цель, остальные были не видны).
+  goalStripGrid: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 14 },
+  goalStripCardSmall: { display: "flex", flexDirection: "column", gap: 6, background: "#fff", border: CARD_BORDER, borderRadius: 16, padding: "10px 12px", boxShadow: CARD_SHADOW, textAlign: "left" },
+  goalStripSmallTop: { display: "flex", alignItems: "center", gap: 6 },
+  goalStripIconSmall: { width: 22, height: 22, borderRadius: 8, background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  goalStripSmallTitle: { fontSize: 11.5, fontWeight: 700, color: INK, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 },
+  goalStripSmallPct: { fontSize: 11, fontWeight: 700, color: PURPLE, alignSelf: "flex-end" },
 
   // --- Личный кабинет / подписка (Модуль 3D) ---
   planBadgeFree: { display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: MUTED, background: "rgba(11,11,16,0.06)", borderRadius: 999, padding: "5px 12px" },
