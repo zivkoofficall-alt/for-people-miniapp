@@ -154,34 +154,35 @@ const styles = {
   emptyHint: { fontSize: 12.5, color: MUTED },
   emptyHintSmall: { fontSize: 11.5, color: MUTED, marginTop: 4 },
   grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(155px, 1fr))", gap: 10 },
-  card: { position: "relative", background: "#fff", border: `1px solid rgba(124,77,255,0.35)`, borderRadius: 20, padding: 12, textAlign: "left", display: "flex", flexDirection: "column", gap: 6, fontFamily: "'Inter', sans-serif", boxShadow: CARD_SHADOW },
+  card: { position: "relative", background: "#fff", border: `1px solid rgba(124,77,255,0.35)`, borderRadius: 18, padding: 11, textAlign: "left", display: "flex", flexDirection: "column", gap: 8, fontFamily: "'Inter', sans-serif", boxShadow: CARD_SHADOW },
   selectCheck: { position: "absolute", top: 10, right: 10, width: 20, height: 20, borderRadius: "50%", border: "1.5px solid rgba(11,11,16,0.25)", display: "flex", alignItems: "center", justifyContent: "center" },
   selectCheckActive: { background: PURPLE, border: `1.5px solid ${PURPLE}` },
-  cardTopRow: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+  // Верхний ряд — единственное место, где живут иконки мессенджеров.
+  // Он всегда первый элемент карточки, поэтому его вертикальная позиция
+  // не зависит от длины имени/должности ниже — в отличие от старой
+  // вёрстки, где ряд иконок ехал вверх-вниз вслед за текстом.
+  cardTopRow: { display: "flex", justifyContent: "space-between", alignItems: "center", minHeight: 15 },
   cardIndex: { fontSize: 10.5, color: "rgba(11,11,16,0.35)", fontWeight: 600 },
-  avatarBubble: { width: 40, height: 40, borderRadius: 14, background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 15, color: PURPLE, overflow: "hidden", flexShrink: 0, marginBottom: 0 },
-  // cardHeaderRow больше не центрирует аватар "заодно" с текстовым блоком —
-  // аватар зафиксирован сверху (flex-start), а не участвует в общем
-  // вертикальном центрировании, которое раньше "гуляло" от объёма имени.
-  cardHeaderRow: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 8, textAlign: "center" },
-  cardInfoCol: { display: "flex", flexDirection: "column", alignItems: "center", gap: 2, minWidth: 0, width: "100%" },
-  // minHeight под 2 строки — блок имени всегда одной высоты, независимо от
-  // того, помещается имя в одну строку или переносится на вторую.
-  cardNameCompact: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 14.5, lineHeight: 1.25, minHeight: 36, color: INK, wordBreak: "break-word", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", textAlign: "center" },
-  // Тот же приём для подзаголовка (должность/категория) — рендерится
-  // всегда (см. ContactCard.jsx), даже когда пусто, чтобы ряд иконок
-  // соцсетей ниже не "прыгал" вверх-вниз в зависимости от контакта.
-  cardSubtitleCompact: { fontSize: 11, color: MUTED, lineHeight: 1.3, minHeight: 28.6, wordBreak: "break-word", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", textAlign: "center" },
+  cardTopRight: { display: "flex", alignItems: "center", gap: 5 },
+  avatarBubble: { width: 38, height: 38, borderRadius: 12, background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 14, color: PURPLE, overflow: "hidden", flexShrink: 0 },
+  // Аватар слева + текст справа, горизонтально — компактнее и без лишней
+  // пустоты, которую давал прежний вертикальный центрированный стек.
+  cardHeaderRow: { display: "flex", flexDirection: "row", alignItems: "center", gap: 9 },
+  cardInfoCol: { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 1, minWidth: 0, flex: 1, textAlign: "left" },
+  // Одна строка с многоточием вместо резервирования высоты под 2 строки —
+  // карточка больше не "раздувается" пустым местом для коротких имён.
+  cardNameCompact: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 14, lineHeight: 1.25, color: INK, width: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "left" },
+  cardSubtitleCompact: { fontSize: 11, color: MUTED, lineHeight: 1.3, width: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "left" },
   avatarBubbleSmall: { width: 30, height: 30, borderRadius: 10, background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 12, color: PURPLE, overflow: "hidden", marginBottom: 4 },
   avatarImg: { width: "100%", height: "100%", objectFit: "cover" },
   cardName: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 14.5, lineHeight: 1.2, color: INK },
   cardJob: { fontSize: 10.5, color: MUTED },
   cardPhone: { fontSize: 11.5, color: MUTED },
   cardCategory: { fontSize: 10, fontWeight: 700, color: PURPLE, alignSelf: "flex-start", background: PURPLE_SOFT, borderRadius: 999, padding: "2px 8px" },
-  cardBadgeRow: { display: "flex", gap: 5, flexWrap: "wrap" },
-  msgBadge: { fontSize: 9.5, fontWeight: 700, padding: "3px 7px", borderRadius: 999 },
+  cardBadgeRow: { display: "flex", gap: 4, flexWrap: "nowrap" },
+  msgBadge: { fontSize: 9, fontWeight: 700, padding: "2.5px 6px", borderRadius: 999, whiteSpace: "nowrap" },
   tagBadge: { fontSize: 9.5, fontWeight: 600, padding: "3px 7px", borderRadius: 999, background: "rgba(11,11,16,0.06)", color: MUTED },
-  cardActionsRow: { display: "flex", gap: 6, marginTop: "auto", paddingTop: 4 },
+  cardActionsRow: { display: "flex", gap: 6, marginTop: "auto", paddingTop: 2 },
   cardActionGhost: { width: 30, height: 30, borderRadius: 10, background: "#F5F3FA", border: CARD_BORDER, display: "flex", alignItems: "center", justifyContent: "center", color: MUTED, flexShrink: 0 },
   cardActionPrimary: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, height: 30, borderRadius: 10, background: PURPLE_GRADIENT, color: "#fff", fontSize: 11.5, fontWeight: 700, textDecoration: "none", boxShadow: PURPLE_GRADIENT_SHADOW },
   cardActionDisabled: { flex: 1, display: "flex", alignItems: "center", justifyContent: "center", height: 30, borderRadius: 10, background: "rgba(11,11,16,0.05)", color: "rgba(11,11,16,0.3)", fontSize: 10.5, fontWeight: 600 },
@@ -427,7 +428,7 @@ const styles = {
   dangerGhostBtn: { width: "100%", textAlign: "center", color: "#E5484D", fontWeight: 700, fontSize: 13, padding: "12px 0", background: "transparent", border: "none", marginTop: 6, display: "flex", alignItems: "center", justifyContent: "center" },
 
   // --- Цели (Модуль 3D) ---
-  goalsGrid: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 },
+  goalsGrid: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 },
   goalCard: { background: "#fff", border: CARD_BORDER, borderRadius: 18, padding: 14, boxShadow: CARD_SHADOW, cursor: "pointer", textAlign: "left" },
   goalCardTop: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   goalTitle: { fontSize: 14, fontWeight: 700, color: INK, flex: 1, marginRight: 8, wordBreak: "break-word", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" },
@@ -460,7 +461,7 @@ const styles = {
   // Компактные карточки для главного экрана, когда активных целей две и
   // больше — рядом по 2 в ряд, вместо одной широкой полосы (которая
   // раньше показывала только первую цель, остальные были не видны).
-  goalStripGrid: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginBottom: 14 },
+  goalStripGrid: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10, marginBottom: 14 },
   goalStripCardSmall: { display: "flex", flexDirection: "column", gap: 6, background: "#fff", border: CARD_BORDER, borderRadius: 16, padding: "10px 12px", boxShadow: CARD_SHADOW, textAlign: "left" },
   goalStripSmallTop: { display: "flex", alignItems: "center", gap: 6 },
   goalStripIconSmall: { width: 22, height: 22, borderRadius: 8, background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
