@@ -247,7 +247,7 @@ const styles = {
   confirmTitle: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 17, marginBottom: 4, color: INK },
   confirmHint: { fontSize: 12.5, color: MUTED, marginBottom: 18 },
   detailActions: { display: "flex", gap: 10 },
-  primaryPill: { flex: 1, background: PURPLE_GRADIENT, color: "#fff", border: "none", borderRadius: 999, padding: "13px 0", fontSize: 14, fontWeight: 700, fontFamily: "'Inter', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, boxShadow: PURPLE_GRADIENT_SHADOW },
+  primaryPill: { flex: 1, background: PURPLE_GRADIENT, color: "#fff", border: "none", borderRadius: 999, padding: "13px 18px", fontSize: 14, fontWeight: 700, fontFamily: "'Inter', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, boxShadow: PURPLE_GRADIENT_SHADOW },
   secondaryPill: { flex: 1, background: "#fff", color: INK, border: CARD_BORDER, borderRadius: 999, padding: "13px 0", fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontFamily: "'Inter', sans-serif" },
   dangerPill: { flex: 1, background: "#E5484D", color: "#fff", border: "none", borderRadius: 999, padding: "13px 0", fontSize: 14, fontWeight: 700, fontFamily: "'Inter', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 },
   sheet: { position: "relative", width: "100%", maxWidth: 480, background: SHEET_BG, borderRadius: "28px 28px 0 0", padding: "26px 20px 24px", maxHeight: "88vh", overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", fontFamily: "'Inter', sans-serif", border: "1px solid rgba(11,11,16,0.08)", borderBottom: "none" },
@@ -503,7 +503,7 @@ const styles = {
   paymentMethodChipActive: { background: PURPLE_GRADIENT, color: "#fff", border: "1px solid transparent" },
   payDisclaimer: { fontSize: 11, color: MUTED, lineHeight: 1.5, background: "#F5F3FA", borderRadius: 12, padding: 10, marginTop: 12 },
   demoLink: { fontSize: 11, color: PURPLE, fontWeight: 700, background: "none", border: "none", textDecoration: "underline", marginTop: 10 },
-  aiBlockedCard: { background: "#FCE9E8", border: "1px solid rgba(229,72,77,0.25)", borderRadius: 16, padding: 14, display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-start" },
+  aiBlockedCard: { background: "#FCE9E8", border: "1px solid rgba(229,72,77,0.25)", borderRadius: 16, padding: 14, display: "flex", flexDirection: "column", gap: 10, alignItems: "stretch" },
   aiBlockedText: { fontSize: 12.5, color: "#B7332F", lineHeight: 1.5 },
 
   // --- Умный анализ окружения (Модуль 3C) ---
