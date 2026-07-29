@@ -24,6 +24,8 @@ const globalCss = `
   @keyframes fpStepIn { from{opacity:0; transform:translateX(16px)} to{opacity:1; transform:translateX(0)} }
   @keyframes fpCardIn { from{opacity:0; transform:translateY(10px) scale(0.96)} to{opacity:1; transform:translateY(0) scale(1)} }
   @keyframes fpPulse { 0%,100%{opacity:0.55} 50%{opacity:1} }
+  @keyframes fpSpinSlow { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+  .fp-splash-spin { animation: fpSpinSlow 3.4s linear infinite; }
   .fp-overlay-anim { animation: fpFadeIn .18s ease; }
   .fp-overlay-anim-out { animation: fpFadeOut .16s ease both; pointer-events: none; }
   .fp-sheet-anim { animation: fpSlideUp .3s cubic-bezier(.2,.8,.2,1); will-change: transform, opacity; }
@@ -157,11 +159,19 @@ const styles = {
   selectCheckActive: { background: PURPLE, border: `1.5px solid ${PURPLE}` },
   cardTopRow: { display: "flex", justifyContent: "space-between", alignItems: "center" },
   cardIndex: { fontSize: 10.5, color: "rgba(11,11,16,0.35)", fontWeight: 600 },
-  avatarBubble: { width: 40, height: 40, borderRadius: 14, background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 15, color: PURPLE, overflow: "hidden", flexShrink: 0 },
-  cardHeaderRow: { display: "flex", flexDirection: "column", alignItems: "center", gap: 8, textAlign: "center" },
+  avatarBubble: { width: 40, height: 40, borderRadius: 14, background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 15, color: PURPLE, overflow: "hidden", flexShrink: 0, marginBottom: 0 },
+  // cardHeaderRow больше не центрирует аватар "заодно" с текстовым блоком —
+  // аватар зафиксирован сверху (flex-start), а не участвует в общем
+  // вертикальном центрировании, которое раньше "гуляло" от объёма имени.
+  cardHeaderRow: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 8, textAlign: "center" },
   cardInfoCol: { display: "flex", flexDirection: "column", alignItems: "center", gap: 2, minWidth: 0, width: "100%" },
-  cardNameCompact: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 14.5, lineHeight: 1.25, color: INK, wordBreak: "break-word", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", textAlign: "center" },
-  cardSubtitleCompact: { fontSize: 11, color: MUTED, lineHeight: 1.3, wordBreak: "break-word", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", textAlign: "center" },
+  // minHeight под 2 строки — блок имени всегда одной высоты, независимо от
+  // того, помещается имя в одну строку или переносится на вторую.
+  cardNameCompact: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 14.5, lineHeight: 1.25, minHeight: 36, color: INK, wordBreak: "break-word", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", textAlign: "center" },
+  // Тот же приём для подзаголовка (должность/категория) — рендерится
+  // всегда (см. ContactCard.jsx), даже когда пусто, чтобы ряд иконок
+  // соцсетей ниже не "прыгал" вверх-вниз в зависимости от контакта.
+  cardSubtitleCompact: { fontSize: 11, color: MUTED, lineHeight: 1.3, minHeight: 28.6, wordBreak: "break-word", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", textAlign: "center" },
   avatarBubbleSmall: { width: 30, height: 30, borderRadius: 10, background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 12, color: PURPLE, overflow: "hidden", marginBottom: 4 },
   avatarImg: { width: "100%", height: "100%", objectFit: "cover" },
   cardName: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 14.5, lineHeight: 1.2, color: INK },
@@ -207,8 +217,21 @@ const styles = {
   // touchAction/overscrollBehavior — чтобы под сплэшем нельзя было
   // проскроллить или задеть контент, пока данные ещё не готовы.
   splashScreen: { position: "fixed", inset: 0, background: BG, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18, zIndex: 999, touchAction: "none", overscrollBehavior: "contain" },
-  splashLogoWrap: { width: 96, height: 96, borderRadius: 28, background: PURPLE_GRADIENT, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: PURPLE_GRADIENT_SHADOW, overflow: "hidden" },
-  splashLogo: { width: 56, height: 56, objectFit: "contain" },
+  // Логотип без квадратной подложки: сама PNG-марка (прозрачный фон, белая
+  // заливка формы) используется как CSS-маска поверх фирменного
+  // фиолетового градиента — получаем цветной значок без фонового блока.
+  splashLogo: {
+    width: 72, height: 72,
+    background: PURPLE_GRADIENT,
+    WebkitMaskImage: "url(/logo-mark.png)",
+    maskImage: "url(/logo-mark.png)",
+    WebkitMaskSize: "contain",
+    maskSize: "contain",
+    WebkitMaskRepeat: "no-repeat",
+    maskRepeat: "no-repeat",
+    WebkitMaskPosition: "center",
+    maskPosition: "center",
+  },
   splashText: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 600, fontSize: 13, color: MUTED, letterSpacing: 0.2 },
   popoverSheet: { width: "100%", maxWidth: 480, background: SHEET_BG, borderRadius: "26px 26px 0 0", padding: "22px 20px 26px", border: "1px solid rgba(11,11,16,0.08)", borderBottom: "none", overscrollBehavior: "contain" },
   popoverTitle: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 16, marginBottom: 14, color: INK },
@@ -420,6 +443,13 @@ const styles = {
   },
   goalQualToggleDone: { background: "#EAF7F1", border: "1px solid rgba(34,163,122,0.25)" },
   goalEditHint: { fontSize: 10, color: "rgba(11,11,16,0.3)", textAlign: "right", marginTop: 8, fontWeight: 600 },
+  goalPinRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(11,11,16,0.06)" },
+  goalPinLabel: { fontSize: 11, color: MUTED, fontWeight: 600 },
+  goalPinSwitch: { width: 34, height: 20, borderRadius: 999, background: "rgba(11,11,16,0.12)", position: "relative", flexShrink: 0, border: "none", padding: 0, transition: "background .15s ease" },
+  goalPinSwitchActive: { background: PURPLE },
+  goalPinKnob: { position: "absolute", top: 2, left: 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 2px rgba(11,11,16,0.25)", transition: "transform .15s ease" },
+  goalPinKnobActive: { transform: "translateX(14px)" },
+  goalsPinHint: { fontSize: 11, color: MUTED, background: "#F5F3FA", borderRadius: 12, padding: "8px 10px", marginBottom: 4 },
   goalStripCard: { display: "flex", alignItems: "center", gap: 10, background: "#fff", border: CARD_BORDER, borderRadius: 16, padding: "11px 14px", marginBottom: 14, boxShadow: CARD_SHADOW },
   goalStripIcon: { width: 30, height: 30, borderRadius: 10, background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   goalStripBody: { flex: 1, minWidth: 0 },
