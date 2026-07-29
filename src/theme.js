@@ -158,10 +158,10 @@ const styles = {
   cardTopRow: { display: "flex", justifyContent: "space-between", alignItems: "center" },
   cardIndex: { fontSize: 10.5, color: "rgba(11,11,16,0.35)", fontWeight: 600 },
   avatarBubble: { width: 40, height: 40, borderRadius: 14, background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 15, color: PURPLE, overflow: "hidden", flexShrink: 0 },
-  cardHeaderRow: { display: "flex", alignItems: "flex-start", gap: 10 },
-  cardInfoCol: { display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flex: 1 },
-  cardNameCompact: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 14.5, lineHeight: 1.25, color: INK, wordBreak: "break-word", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" },
-  cardSubtitleCompact: { fontSize: 11, color: MUTED, lineHeight: 1.3, wordBreak: "break-word", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" },
+  cardHeaderRow: { display: "flex", flexDirection: "column", alignItems: "center", gap: 8, textAlign: "center" },
+  cardInfoCol: { display: "flex", flexDirection: "column", alignItems: "center", gap: 2, minWidth: 0, width: "100%" },
+  cardNameCompact: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 14.5, lineHeight: 1.25, color: INK, wordBreak: "break-word", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", textAlign: "center" },
+  cardSubtitleCompact: { fontSize: 11, color: MUTED, lineHeight: 1.3, wordBreak: "break-word", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", textAlign: "center" },
   avatarBubbleSmall: { width: 30, height: 30, borderRadius: 10, background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 12, color: PURPLE, overflow: "hidden", marginBottom: 4 },
   avatarImg: { width: "100%", height: "100%", objectFit: "cover" },
   cardName: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 14.5, lineHeight: 1.2, color: INK },
@@ -262,6 +262,7 @@ const styles = {
   fieldInput: { background: "#F5F3FA", border: CARD_BORDER, borderRadius: 14, padding: "10px 13px", fontSize: 14, color: INK, outline: "none", fontFamily: "'Inter', sans-serif" },
   messengerFieldsRow: { background: "#F5F3FA", borderRadius: 16, padding: 12, marginBottom: 4, marginTop: 10, display: "flex", flexDirection: "column", gap: 8 },
   messengerFieldsLabel: { fontSize: 10.5, color: MUTED, fontWeight: 600 },
+  messengerPrefixHint: { fontSize: 10.5, color: MUTED, lineHeight: 1.35 },
   importHint: { fontSize: 12.5, color: MUTED, lineHeight: 1.5, marginBottom: 16, marginTop: 10 },
   uploadZone: { width: "100%", background: PURPLE_SOFT, border: "1.5px dashed rgba(124,77,255,0.4)", borderRadius: 18, padding: "22px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: PURPLE, fontSize: 13, fontWeight: 600 },
   importError: { fontSize: 12.5, color: "#E5484D", marginTop: 12 },
@@ -278,6 +279,10 @@ const styles = {
   micBtn: { width: 44, height: 44, borderRadius: "50%", background: PURPLE_SOFT, border: `1px solid rgba(124,77,255,0.3)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   micBtnActive: { background: "#E5484D", border: "1px solid #E5484D" },
   micHint: { fontSize: 11.5, color: MUTED, lineHeight: 1.4 },
+  // Предупреждение о нечёткой/неполной распознанной речи (Фаза D) — тёплый
+  // янтарный тон, чтобы явно отличаться от нейтрального micHint и звать
+  // проверить текст, но не пугать так же сильно, как красная aiBlockedCard.
+  voiceWarningBanner: { background: "#FFF4E0", border: "1px solid rgba(217,140,43,0.3)", borderRadius: 12, padding: "10px 12px", fontSize: 12, color: "#8A5A15", lineHeight: 1.45, marginTop: 4 },
   quickAddExample: { fontSize: 11.5, color: MUTED, lineHeight: 1.5, background: "#F5F3FA", borderRadius: 14, padding: 12, marginTop: 10 },
   taskPreviewCard: { background: PURPLE_SOFT, border: "1px solid rgba(124,77,255,0.25)", borderRadius: 16, padding: 14, marginTop: 4, display: "flex", flexDirection: "column", gap: 8 },
   taskPreviewLabel: { fontSize: 10.5, fontWeight: 700, color: "#8A6FE0", textTransform: "uppercase", letterSpacing: "0.03em" },
