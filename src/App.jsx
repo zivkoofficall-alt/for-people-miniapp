@@ -643,6 +643,19 @@ export default function ForPeople() {
     await persistGoals(goals.filter((g) => g.id !== goalId));
     showToast("Цель удалена");
   }
+  async function handleTogglePinnedGoal(goalId) {
+    const target = goals.find((g) => g.id === goalId);
+    if (!target) return;
+    if (!target.pinnedOnHome) {
+      const pinnedCount = goals.filter((g) => g.pinnedOnHome && !computeGoalProgress(g, contacts).isDone).length;
+      if (pinnedCount >= 2) {
+        showToast("Можно закрепить не больше 2 целей");
+        return;
+      }
+    }
+    const next = goals.map((g) => (g.id === goalId ? { ...g, pinnedOnHome: !g.pinnedOnHome } : g));
+    await persistGoals(next);
+  }
 
   // --- Подписка / лимит AI-запросов (Модуль 3D) ---
   // Реального биллинга здесь нет (см. Profile.jsx) — это только контроль
@@ -685,6 +698,11 @@ export default function ForPeople() {
   // уже верно считает готовность для обоих типов целей (количественных и
   // качественных) — используем его вместо сырого поля status.
   const activeGoals = goals.filter((g) => !computeGoalProgress(g, contacts).isDone);
+  // homeGoals — что реально показываем на главном экране: если активна 1
+  // цель или 2 — показываем их все автоматически; если больше двух, авто-
+  // показ выключается и остаются только вручную закреплённые (тумблер
+  // «На главном экране» в настройках цели), максимум 2 из них.
+  const homeGoals = activeGoals.length > 2 ? activeGoals.filter((g) => g.pinnedOnHome).slice(0, 2) : activeGoals;
 
   // --- Auth Gate (Модуль Фаза C) ---
   // Если initData отсутствует — приложение открыто не через Telegram
@@ -813,22 +831,22 @@ export default function ForPeople() {
             </div>
           </div>
 
-          {activeGoals.length === 1 && (
+          {homeGoals.length === 1 && (
             <button className="fp-btn" style={styles.goalStripCard} onClick={() => setGoalsOpen(true)}>
               <div style={styles.goalStripIcon}><Target size={15} color="#7C4DFF" /></div>
               <div style={styles.goalStripBody}>
-                <div style={styles.goalStripTitle}>{activeGoals[0].title}</div>
+                <div style={styles.goalStripTitle}>{homeGoals[0].title}</div>
                 <div style={styles.goalStripTrack}>
-                  <div style={{ ...styles.goalStripFill, width: `${computeGoalProgress(activeGoals[0], contacts).pct}%` }} />
+                  <div style={{ ...styles.goalStripFill, width: `${computeGoalProgress(homeGoals[0], contacts).pct}%` }} />
                 </div>
               </div>
-              <span style={styles.goalStripPct}>{computeGoalProgress(activeGoals[0], contacts).pct}%</span>
+              <span style={styles.goalStripPct}>{computeGoalProgress(homeGoals[0], contacts).pct}%</span>
             </button>
           )}
 
-          {activeGoals.length >= 2 && (
+          {homeGoals.length >= 2 && (
             <div style={styles.goalStripGrid}>
-              {activeGoals.map((g) => {
+              {homeGoals.map((g) => {
                 const pct = computeGoalProgress(g, contacts).pct;
                 return (
                   <button key={g.id} className="fp-btn" style={styles.goalStripCardSmall} onClick={() => setGoalsOpen(true)}>
@@ -1328,6 +1346,7 @@ export default function ForPeople() {
             onUpdateGoal={handleUpdateGoal}
             onToggleQualDone={handleToggleQualDone}
             onDeleteGoal={handleDeleteGoal}
+            onTogglePinned={handleTogglePinnedGoal}
           />
         </Suspense>
       )}
