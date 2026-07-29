@@ -65,9 +65,7 @@ function ContactCardBase({ contact, index, selectMode, isSelected, onClick, onMa
         <div style={styles.avatarBubble}>{c.avatar ? <img src={c.avatar} alt="" style={styles.avatarImg} /> : initials(c)}</div>
         <div style={styles.cardInfoCol}>
           <div style={styles.cardNameCompact}>{c.firstName} {c.lastName}</div>
-          {(c.job || contactCategories(c).length > 0) && (
-            <div style={styles.cardSubtitleCompact}>{[c.job, ...contactCategories(c)].filter(Boolean).join(" · ")}</div>
-          )}
+          <div style={styles.cardSubtitleCompact}>{[c.job, ...contactCategories(c)].filter(Boolean).join(" · ")}</div>
         </div>
       </div>
       {MESSENGERS.some((m) => c.messengers?.[m.key]?.enabled) && (
