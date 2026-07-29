@@ -257,7 +257,18 @@ export default function ForPeople() {
       try { const v4 = await loadWithLegacyMigration("fp_tasks"); if (v4) setTasks(JSON.parse(v4)); } catch (e) {}
       try { const v4b = await loadWithLegacyMigration("fp_task_types"); if (v4b) { const parsed = JSON.parse(v4b); if (Array.isArray(parsed) && parsed.length) setTaskTypes(parsed); } } catch (e) {}
       try { const v5 = await loadWithLegacyMigration("fp_goals"); if (v5) setGoals(JSON.parse(v5)); } catch (e) {}
-      try { const v6 = await loadWithLegacyMigration("fp_subscription"); if (v6) setSubscription({ ...emptySubscription(), ...JSON.parse(v6) }); } catch (e) {}
+      try {
+        const v6 = await loadWithLegacyMigration("fp_subscription");
+        if (v6) {
+          const stored = JSON.parse(v6);
+          // aiRequestsLimit не выбирается пользователем — это просто константа
+          // текущей версии приложения, поэтому при загрузке она всегда берётся
+          // из актуального emptySubscription(), а не из того, что успело
+          // сохраниться в старой сессии (иначе смена дефолта в коде никак не
+          // проявлялась бы у тех, кто уже открывал приложение раньше).
+          setSubscription({ ...emptySubscription(), ...stored, aiRequestsLimit: emptySubscription().aiRequestsLimit });
+        }
+      } catch (e) {}
       setLoaded(true);
     })();
   }, []);
