@@ -1,16 +1,41 @@
 import React, { useState } from "react";
-import { X, User, Check, CreditCard, Sparkles, TrendingUp, Star, Loader2 } from "lucide-react";
+import { X, User, Check, CreditCard, Sparkles, TrendingUp, Star, Loader2, Gift, ExternalLink, CheckCircle2 } from "lucide-react";
 import { styles, PURPLE } from "../theme.js";
-import { PLAN_FEATURES, PRO_PRICE_LABEL, PRO_PRICE_STARS, PRO_PRICE_STARS_OLD, PAYMENT_METHODS } from "../constants.js";
+import { PLAN_FEATURES, PRO_PRICE_LABEL, PRO_PRICE_STARS, PRO_PRICE_STARS_OLD, PAYMENT_METHODS, CHANNEL_URL, CHANNEL_BONUS_AMOUNT } from "../constants.js";
 import { computeContactStats } from "../helpers.js";
 
-export default function Profile({ subscription, contacts, tasks, onClose, onActivateDemoPro, onActivateProViaStars, onDowngradeToFree }) {
+export default function Profile({ subscription, aiRequestsLimit, contacts, tasks, onClose, onActivateDemoPro, onActivateProViaStars, onDowngradeToFree, onClaimChannelBonus }) {
   const [paymentMethod, setPaymentMethod] = useState("stars");
   const [payAttempted, setPayAttempted] = useState(false);
   const [starsLoading, setStarsLoading] = useState(false);
   const [starsError, setStarsError] = useState("");
   const [closing, setClosing] = useState(false);
+  const [channelChecking, setChannelChecking] = useState(false);
+  const [channelMessage, setChannelMessage] = useState("");
   function handleClose() { setClosing(true); setTimeout(onClose, 180); }
+
+  function handleOpenChannel() {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    if (tg && tg.openTelegramLink) tg.openTelegramLink(CHANNEL_URL);
+    else window.open(CHANNEL_URL, "_blank", "noopener,noreferrer");
+  }
+
+  async function handleCheckChannelSub() {
+    if (!onClaimChannelBonus) return;
+    setChannelChecking(true);
+    setChannelMessage("");
+    const result = await onClaimChannelBonus();
+    setChannelChecking(false);
+    if (!result.ok) {
+      setChannelMessage(result.error || "Не получилось проверить подписку.");
+    } else if (result.alreadyClaimed) {
+      setChannelMessage("Бонус уже был начислен ранее.");
+    } else if (!result.subscribed) {
+      setChannelMessage("Подписка не найдена — подпишитесь на канал и попробуйте ещё раз.");
+    }
+    // Успешное начисление показывается тостом из App.jsx и обновлением
+    // subscription.channelBonusClaimed сверху — здесь ничего дублировать не нужно.
+  }
 
   const starsDiscountPct = Math.round((1 - PRO_PRICE_STARS / PRO_PRICE_STARS_OLD) * 100);
 
@@ -57,7 +82,7 @@ export default function Profile({ subscription, contacts, tasks, onClose, onActi
 
   const isPro = subscription.plan === "pro";
   const used = subscription.aiRequestsUsed || 0;
-  const limit = subscription.aiRequestsLimit || 20;
+  const limit = aiRequestsLimit || subscription.aiRequestsLimit || 20;
   const usagePct = isPro ? 0 : Math.min(100, Math.round((used / limit) * 100));
   const usageColor = usagePct >= 90 ? "#E5484D" : usagePct >= 60 ? "#D98C2B" : "#7C4DFF";
   const stats = computeContactStats(contacts || [], tasks || []);
@@ -124,6 +149,32 @@ export default function Profile({ subscription, contacts, tasks, onClose, onActi
                 ? "Лимит бесплатных AI-запросов исчерпан — оформите Pro ниже, чтобы снять ограничение."
                 : "Считаются AI-поиск, быстрое добавление через AI и анализ окружения."}
             </div>
+          </div>
+        )}
+
+        {!isPro && (
+          <div style={styles.channelBonusCard}>
+            <div style={styles.channelBonusTitle}><Gift size={15} color={PURPLE} />Бонус за подписку на канал</div>
+            {subscription.channelBonusClaimed ? (
+              <div style={styles.channelBonusDone}><CheckCircle2 size={15} />Бонус получен — +{CHANNEL_BONUS_AMOUNT} AI-запросов уже в вашем лимите</div>
+            ) : (
+              <>
+                <div style={styles.channelBonusText}>
+                  Подпишитесь на канал for people — получите +{CHANNEL_BONUS_AMOUNT} бесплатных AI-запросов.
+                  Подписка проверяется по вашему Telegram-аккаунту, накрутить нельзя.
+                </div>
+                <div style={styles.channelBonusRow}>
+                  <button className="fp-btn" style={{ ...styles.secondaryPill, flex: 1 }} onClick={handleOpenChannel}>
+                    <ExternalLink size={13} /> Открыть канал
+                  </button>
+                  <button className="fp-btn" style={{ ...styles.primaryPill, flex: 1 }} onClick={handleCheckChannelSub} disabled={channelChecking}>
+                    {channelChecking ? <Loader2 size={13} className="fp-pulse" /> : <Check size={13} />}
+                    {channelChecking ? "Проверяем…" : "Я подписался"}
+                  </button>
+                </div>
+                {channelMessage && <div style={styles.importError}>{channelMessage}</div>}
+              </>
+            )}
           </div>
         )}
 
@@ -206,7 +257,7 @@ export default function Profile({ subscription, contacts, tasks, onClose, onActi
           )}
         </div>
 
-        <div style={styles.versionTag}>for people · v1.2.6</div>
+        <div style={styles.versionTag}>for people · v1.3.0</div>
       </div>
     </div>
   );
