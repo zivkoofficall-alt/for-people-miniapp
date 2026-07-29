@@ -95,10 +95,7 @@ function ConfirmModal({ open, title, hint, confirmLabel = "Подтвердит�
 function SplashScreen({ closing }) {
   return (
     <div className={closing ? "fp-splash-out" : undefined} style={styles.splashScreen}>
-      <div className="fp-pulse" style={styles.splashLogoWrap}>
-        <img src="/logo-mark.png" alt="" aria-hidden style={styles.splashLogo} />
-      </div>
-      <div style={styles.splashText}>Загрузка…</div>
+      <div className="fp-splash-spin" style={styles.splashLogo} role="img" aria-label="for people" />
     </div>
   );
 }
