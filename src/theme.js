@@ -24,6 +24,8 @@ const globalCss = `
   @keyframes fpStepIn { from{opacity:0; transform:translateX(16px)} to{opacity:1; transform:translateX(0)} }
   @keyframes fpCardIn { from{opacity:0; transform:translateY(10px) scale(0.96)} to{opacity:1; transform:translateY(0) scale(1)} }
   @keyframes fpPulse { 0%,100%{opacity:0.55} 50%{opacity:1} }
+  @keyframes fpDotBounce { 0%,80%,100%{transform:translateY(0); opacity:0.4} 40%{transform:translateY(-4px); opacity:1} }
+  .fp-onboard-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:#7C4DFF; animation: fpDotBounce 1.1s ease-in-out infinite; }
   @keyframes fpSpinSlow { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
   @keyframes fpConfettiFall {
     0% { transform: translateY(-12vh) translateX(0) rotate(0deg); opacity: 0; }
@@ -610,6 +612,42 @@ const styles = {
   channelBonusBtnGhost: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, background: "transparent", border: CARD_BORDER, borderRadius: 999, padding: "8px 14px", fontSize: 12, fontWeight: 600, color: INK, fontFamily: "'Inter', sans-serif" },
   channelBonusBtnSolid: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5, background: PURPLE, border: "none", borderRadius: 999, padding: "8px 14px", fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: "'Inter', sans-serif" },
   channelBonusDone: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: "#22A37A" },
+
+  // --- Онбординг (30-секундный флоу первого запуска) ---
+  // Полноэкранный, а не bottom-sheet, как остальные модалки — новому
+  // пользователю ничего не должно "подглядываться" из-под него, и на первом
+  // запуске это единственный экран, который вообще имеет смысл показывать.
+  onboardWrap: { position: "fixed", inset: 0, zIndex: 1000, background: BG, display: "flex", flexDirection: "column", touchAction: "none", overscrollBehavior: "contain" },
+  onboardTop: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px 0" },
+  onboardDots: { display: "flex", gap: 6 },
+  onboardDot: { width: 20, height: 4, borderRadius: 999, background: "rgba(11,11,16,0.12)" },
+  onboardDotActive: { background: PURPLE },
+  onboardSkip: { fontSize: 12.5, fontWeight: 600, color: MUTED, background: "none", border: "none" },
+  onboardBody: { flex: 1, display: "flex", flexDirection: "column", padding: "18px 22px 22px", overflowY: "auto" },
+  onboardIconRing: { width: 64, height: 64, borderRadius: "50%", background: PURPLE_GRADIENT, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: PURPLE_GRADIENT_SHADOW, margin: "10px 0 18px" },
+  onboardTitle: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, fontSize: 24, color: INK, lineHeight: 1.15, margin: "0 0 8px" },
+  onboardSubtitle: { fontSize: 14, color: MUTED, lineHeight: 1.5, marginBottom: 16 },
+  onboardSecurityRow: { display: "flex", gap: 10, alignItems: "flex-start", background: "#F5F3FA", borderRadius: 16, padding: 14, marginTop: "auto" },
+  onboardSecurityText: { fontSize: 12.5, color: INK, lineHeight: 1.45, fontWeight: 500 },
+  onboardFooter: { padding: "0 22px 26px" },
+  onboardHint: { fontSize: 11.5, color: MUTED, textAlign: "center", marginTop: 10, lineHeight: 1.4 },
+  onboardTgFillBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", background: "#229ED9", color: "#fff", border: "none", borderRadius: 14, padding: "12px 16px", fontSize: 13.5, fontWeight: 700, fontFamily: "'Inter', sans-serif", marginBottom: 14 },
+  onboardDivider: { display: "flex", alignItems: "center", gap: 10, margin: "2px 0 14px", color: MUTED, fontSize: 11.5 },
+  onboardDividerLine: { flex: 1, height: 1, background: "rgba(11,11,16,0.08)" },
+  // Симуляция AI-поиска (aha-moment) — карточка запроса и карточка результата
+  onboardSearchBar: { display: "flex", alignItems: "center", gap: 8, background: "#F5F3FA", border: CARD_BORDER, borderRadius: 16, padding: "12px 14px", fontSize: 14, color: INK, fontWeight: 600, marginBottom: 18 },
+  onboardThinkingRow: { display: "flex", alignItems: "center", gap: 8, color: MUTED, fontSize: 13, fontWeight: 600, padding: "4px 2px" },
+  onboardResultCard: { background: "#fff", border: `1.5px solid ${PURPLE}`, borderRadius: 20, padding: 16, boxShadow: CARD_SHADOW },
+  onboardResultMatch: { display: "inline-flex", alignItems: "center", gap: 5, background: PURPLE_SOFT, color: PURPLE, borderRadius: 999, padding: "3px 10px", fontSize: 11, fontWeight: 800, marginBottom: 10 },
+  onboardResultName: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 700, fontSize: 16, color: INK, marginBottom: 4 },
+  onboardResultReason: { fontSize: 13, color: MUTED, lineHeight: 1.45 },
+  // Пейволл внутри онбординга
+  onboardProgressWrap: { background: "#F5F3FA", borderRadius: 16, padding: 14, marginBottom: 4 },
+  onboardExitOverlay: { position: "fixed", inset: 0, zIndex: 1100, background: "rgba(11,11,16,0.5)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 },
+  onboardExitCard: { width: "100%", maxWidth: 340, background: "#fff", borderRadius: 24, padding: "26px 22px 22px", textAlign: "center", boxShadow: "0 20px 50px rgba(20,10,50,0.28)" },
+  onboardExitGiftRing: { width: 54, height: 54, borderRadius: "50%", background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" },
+  onboardExitTitle: { fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, fontSize: 18, color: INK, marginBottom: 8 },
+  onboardExitText: { fontSize: 13, color: MUTED, lineHeight: 1.5, marginBottom: 18 },
 };
 
 export { globalCss, INK, MUTED, PURPLE, PURPLE_SOFT, PURPLE_GRADIENT, PURPLE_GRADIENT_SHADOW, BG, CARD_BORDER, SHEET_BG, CARD_SHADOW, styles };
