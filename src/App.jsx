@@ -22,6 +22,7 @@ const TaskBoard = lazy(() => import("./components/TaskBoard.jsx"));
 const HealthCheck = lazy(() => import("./components/HealthCheck.jsx"));
 const Goals = lazy(() => import("./components/Goals.jsx"));
 const Profile = lazy(() => import("./components/Profile.jsx"));
+const Onboarding = lazy(() => import("./components/Onboarding.jsx")); // NEW — 30-секундный флоу первого запуска
 
 // Лёгкий fallback на время подгрузки чанка (обычно доли секунды на 3G+)
 function LazyFallback() {
@@ -60,6 +61,7 @@ export default function ForPeople() {
   const [loaded, setLoaded] = useState(false);
   const [showSplash, setShowSplash] = useState(true); // NEW — полноэкранный сплэш при старте (Фаза B)
   const [splashClosing, setSplashClosing] = useState(false); // NEW — идёт fade-out сплэша
+  const [showOnboarding, setShowOnboarding] = useState(false); // NEW — 30-секундный флоу первого запуска
   const activeTaskCount = useMemo(() => tasks.filter((t) => t.status !== "done").length, [tasks]);
 
   const [query, setQuery] = useState("");
@@ -241,6 +243,7 @@ export default function ForPeople() {
 
   useEffect(() => {
     (async () => {
+      let contactsIsEmpty = true; // используется ниже, чтобы решить, показывать ли онбординг
       try {
         const v = await loadWithLegacyMigration("fp_contacts");
         if (v) {
@@ -252,6 +255,7 @@ export default function ForPeople() {
             Array.isArray(c.categories) ? c : { ...c, categories: contactCategories(c) }
           );
           setContacts(parsedContacts);
+          contactsIsEmpty = parsedContacts.length === 0;
         }
       } catch (e) {}
       try { const v2 = await loadWithLegacyMigration("fp_categories"); if (v2) setCategories(JSON.parse(v2)); } catch (e) {}
@@ -268,8 +272,28 @@ export default function ForPeople() {
           // из актуального emptySubscription(), а не из того, что успело
           // сохраниться в старой сессии (иначе смена дефолта в коде никак не
           // проявлялась бы у тех, кто уже открывал приложение раньше).
-          setSubscription({ ...emptySubscription(), ...stored, aiRequestsLimit: emptySubscription().aiRequestsLimit });
+          let merged = { ...emptySubscription(), ...stored, aiRequestsLimit: emptySubscription().aiRequestsLimit };
+          // Триальная неделя из pop-up удержания онбординга (см.
+          // handleClaimOnboardingTrial ниже) — единственный сценарий, где
+          // plan="pro" вообще имеет срок действия (обычная Pro-подписка через
+          // Stars такого поля не использует и держится, пока пользователь сам
+          // не оформит следующий месяц). Поэтому именно здесь, при загрузке,
+          // а не где-то ещё, решаем: срок истёк — тихо возвращаем на Free.
+          if (merged.plan === "pro" && merged.renewsAt && merged.renewsAt < Date.now()) {
+            merged = { ...merged, plan: "free", renewsAt: null };
+          }
+          setSubscription(merged);
         }
+      } catch (e) {}
+      try {
+        const vOnb = await storage.get(storageKey("fp_onboarding_done"), false);
+        const onboardingDone = vOnb && vOnb.value === "1";
+        // Показываем онбординг только тем, кто и правда открывает приложение
+        // впервые (флаг не стоял) и ещё не успел ничего добавить сам —
+        // например, вручную через CSV-импорт до того, как онбординг
+        // подгрузился. Once seen — не навязываем его повторно даже тем, кто
+        // потом удалил все контакты.
+        if (!onboardingDone && contactsIsEmpty) setShowOnboarding(true);
       } catch (e) {}
       setLoaded(true);
     })();
@@ -738,6 +762,32 @@ export default function ForPeople() {
     showToast("Возвращено на Free Trial");
   }
 
+  // --- Онбординг первого запуска ---
+  // Сохраняет первый контакт так же, как обычное добавление в приложении —
+  // никакого отдельного "демо"-хранилища, чтобы после онбординга человек
+  // сразу увидел реальный, а не бутафорский контакт в общем списке.
+  async function handleOnboardingAddContact({ firstName, phone }) {
+    const newContact = { ...emptyContact(), firstName: (firstName || "").trim(), phone: phone || "" };
+    await persistContacts([...contactsRef.current, newContact]);
+    return newContact;
+  }
+
+  // 7 дней Pro из pop-up удержания на пейволле онбординга. renewsAt здесь —
+  // единственный кейс во всём приложении, где срок Pro-плана реально
+  // проверяется (см. загрузку subscription выше) — обычная оплата звёздами
+  // такого срока не ставит.
+  async function handleClaimOnboardingTrial() {
+    const next = { ...subscriptionRef.current, plan: "pro", renewsAt: Date.now() + 7 * 24 * 60 * 60 * 1000 };
+    subscriptionRef.current = next;
+    await persistSubscription(next);
+    showToast("7 дней Pro активированы 🎁");
+  }
+
+  async function completeOnboarding() {
+    setShowOnboarding(false);
+    try { await storage.set(storageKey("fp_onboarding_done"), "1", false); } catch (e) {}
+  }
+
   // --- Бонус за подписку на Telegram-канал ---
   // Возвращает { ok, subscribed, alreadyClaimed, error } — Profile.jsx решает,
   // какое именно сообщение показать по этим полям (не показываем toast на
@@ -820,6 +870,22 @@ export default function ForPeople() {
       <style>{globalCss}</style>
 
       {showSplash && <SplashScreen closing={splashClosing} />}
+
+      {loaded && showOnboarding && (
+        <Suspense fallback={<LazyFallback />}>
+          <Onboarding
+            tgFirstName={typeof window !== "undefined" && window.Telegram?.WebApp?.initDataUnsafe?.user?.first_name}
+            effectiveAiLimit={effectiveAiLimit}
+            aiRequestsUsed={subscription.aiRequestsUsed}
+            onAddContact={handleOnboardingAddContact}
+            onRecordAiUsage={recordAiUsage}
+            onActivateProViaStars={handleActivateProViaStars}
+            onActivateDemoPro={handleActivateDemoPro}
+            onClaimTrialWeek={handleClaimOnboardingTrial}
+            onFinish={completeOnboarding}
+          />
+        </Suspense>
+      )}
 
       <div style={styles.shell}>
         <header style={styles.header}>
