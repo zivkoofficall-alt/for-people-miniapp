@@ -349,7 +349,10 @@ const styles = {
   aiInputRow: { display: "flex", gap: 8, paddingTop: 12, borderTop: "1px solid rgba(11,11,16,0.08)" },
   aiInput: { flex: 1, background: "#F5F3FA", border: CARD_BORDER, borderRadius: 999, padding: "11px 16px", color: INK, fontSize: 13.5, outline: "none" },
   aiSendBtn: { width: 40, height: 40, borderRadius: "50%", background: PURPLE_GRADIENT, border: "none", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: PURPLE_GRADIENT_SHADOW },
-  toast: { position: "fixed", bottom: 150, left: "50%", transform: "translateX(-50%)", background: INK, color: "#fff", padding: "10px 18px", borderRadius: 999, fontSize: 13, fontWeight: 600, boxShadow: "0 8px 24px rgba(0,0,0,0.25)", zIndex: 60 },
+  // zIndex поднят с 60 до 1200 (выше онбординга — см. onboardWrap/onboardExitOverlay
+  // ниже): иначе, например, ошибка "Не удалось сохранить" из persistContacts
+  // во время онбординга рендерилась бы под ним и была бы никому не видна.
+  toast: { position: "fixed", bottom: 150, left: "50%", transform: "translateX(-50%)", background: INK, color: "#fff", padding: "10px 18px", borderRadius: 999, fontSize: 13, fontWeight: 600, boxShadow: "0 8px 24px rgba(0,0,0,0.25)", zIndex: 1200 },
 
   // --- Таск-борд (Модуль 3B) — мобильная лента задач ---
   boardOverlay: { position: "fixed", inset: 0, background: BG, zIndex: 55, display: "flex", flexDirection: "column" },
