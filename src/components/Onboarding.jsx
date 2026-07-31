@@ -17,11 +17,12 @@
 // зависел от реального ответа модели за 1-2 секунды до того, как человек
 // вообще понял ценность продукта.
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { X, Lock, UserPlus, Send, Sparkles, Search, Star, Loader2, Gift, CheckCircle2 } from "lucide-react";
 import { styles, PURPLE } from "../theme.js";
 import { PLAN_FEATURES, PRO_PRICE_STARS, PRO_PRICE_STARS_OLD, AI_SUGGESTIONS } from "../constants.js";
 import { formatRuPhone } from "../helpers.js";
+import { Field } from "./Ui.jsx";
 
 const TOTAL_STEPS = 4;
 
@@ -54,6 +55,11 @@ export default function Onboarding({
 
   const [aiPhase, setAiPhase] = useState("idle"); // idle -> thinking -> done
   const aiTimerRef = useRef(null);
+  // Если компонент размонтируется, пока идёт "AI изучает окружение…"
+  // (например, оплата звёздами прилетела и onFinish() убрал онбординг
+  // раньше, чем сработал таймер), сам таймер иначе продолжит жить и
+  // попытается setState на уже размонтированном компоненте.
+  useEffect(() => () => clearTimeout(aiTimerRef.current), []);
 
   const [starsLoading, setStarsLoading] = useState(false);
   const [starsError, setStarsError] = useState("");
@@ -191,9 +197,12 @@ export default function Onboarding({
           ))}
         </div>
         {/* Пропуск на шагах 0-2 просто идёт дальше по шагам — "закрытием" в
-           смысле удержания считается только уход именно с пейволла (шаг 3). */}
+           смысле удержания считается только уход именно с пейволла (шаг 3).
+           (Раньше здесь был тернарник вида "step===2 && aiPhase!=='done' ? 3
+           : min(step+1,3)" — при пошаговом разборе он в обеих ветках всегда
+           давал ровно step+1, просто более запутанно.) */}
         {step < 3 ? (
-          <button className="fp-btn" style={styles.onboardSkip} onClick={() => goTo(step === 2 && aiPhase !== "done" ? 3 : Math.min(step + 1, 3))}>
+          <button className="fp-btn" style={styles.onboardSkip} onClick={() => goTo(step + 1)}>
             Пропустить
           </button>
         ) : (
@@ -243,21 +252,14 @@ export default function Onboarding({
               </>
             )}
 
-            <label style={styles.fieldWrap}>
-              <span style={styles.fieldLabel}>Имя</span>
-              <input style={styles.fieldInput} value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Например, Ирина" autoFocus />
-            </label>
-            <label style={{ ...styles.fieldWrap, marginTop: 10 }}>
-              <span style={styles.fieldLabel}>Телефон (необязательно)</span>
-              <input
-                style={styles.fieldInput}
-                value={phone}
-                onChange={(e) => setPhone(formatRuPhone(e.target.value))}
-                placeholder="+7 (___) ___-__-__"
-                inputMode="tel"
-                type="tel"
-              />
-            </label>
+            {/* Переиспользуем общий Field вместо ручной разметки — так поле
+               телефона бесплатно получает существующий фикс для вставки
+               номера через буфер обмена (см. Ui.jsx), который пришлось бы
+               иначе дублировать здесь и держать в синхроне с оригиналом. */}
+            <Field label="Имя" value={firstName} onChange={setFirstName} placeholder="Например, Ирина" />
+            <div style={{ marginTop: 10 }}>
+              <Field label="Телефон (необязательно)" value={phone} onChange={setPhone} placeholder="+7 (___) ___-__-__" phoneMask />
+            </div>
           </>
         )}
 
@@ -273,7 +275,11 @@ export default function Onboarding({
             </div>
 
             {aiPhase === "idle" && (
-              <button className="fp-btn" style={{ ...styles.primaryPill, width: "100%" }} onClick={runDemoSearch}>
+              // flexGrow/flexShrink: 0 обязательны — primaryPill сам по себе
+              // содержит flex:1 (рассчитан на пару кнопок в flex-row), а
+              // onboardBody это flex-column: без сброса кнопка растянулась бы
+              // на всю оставшуюся высоту экрана вместо обычной высоты пилюли.
+              <button className="fp-btn" style={{ ...styles.primaryPill, width: "100%", flexGrow: 0, flexShrink: 0 }} onClick={runDemoSearch}>
                 <Sparkles size={14} /> Найти в моём окружении
               </button>
             )}
@@ -288,7 +294,11 @@ export default function Onboarding({
             )}
 
             {aiPhase === "done" && (
-              <div className="fp-card-anim" style={styles.onboardResultCard}>
+              // fpCardIn — существующий keyframe в theme.js, но выделенного
+              // класса под него нет (.fp-card тянет за собой ещё и
+              // cursor:pointer/hover-подъём, что не нужно для некликабельной
+              // карточки-результата) — поэтому анимация задаётся инлайном.
+              <div style={{ ...styles.onboardResultCard, animation: "fpCardIn .3s ease both" }}>
                 <span style={styles.onboardResultMatch}>92% совпадение</span>
                 <div style={styles.onboardResultName}>{contactName}</div>
                 <div style={styles.onboardResultReason}>
@@ -299,7 +309,7 @@ export default function Onboarding({
             )}
 
             {aiPhase === "done" && (
-              <button className="fp-btn" style={{ ...styles.primaryPill, width: "100%", marginTop: 16 }} onClick={() => goTo(3)}>
+              <button className="fp-btn" style={{ ...styles.primaryPill, width: "100%", marginTop: 16, flexGrow: 0, flexShrink: 0 }} onClick={() => goTo(3)}>
                 Хочу безлимитный AI-поиск
               </button>
             )}
@@ -343,23 +353,33 @@ export default function Onboarding({
         )}
       </div>
 
-      <div style={styles.onboardFooter}>
-        {step === 0 && (
-          <button className="fp-btn" style={{ ...styles.primaryPill, width: "100%" }} onClick={() => goTo(1)}>
-            Начать <UserPlus size={15} />
-          </button>
-        )}
-        {step === 1 && (
-          <button className="fp-btn" style={{ ...styles.primaryPill, width: "100%" }} onClick={handleAddContact} disabled={!firstName.trim() || savingContact}>
-            {savingContact ? <Loader2 size={14} className="fp-pulse" /> : <UserPlus size={15} />}
-            {savingContact ? "Добавляем…" : "Добавить и продолжить"}
-          </button>
-        )}
-      </div>
+      {/* На шагах 2-3 CTA уже внутри onboardBody (там своя логика показа
+         кнопки в зависимости от aiPhase/оплаты) — рендерить здесь пустой
+         onboardFooter не нужно: он всё равно не flex, но лишние 26px
+         паддинга снизу создавали заметный пустой зазор под контентом. */}
+      {(step === 0 || step === 1) && (
+        <div style={styles.onboardFooter}>
+          {step === 0 && (
+            <button className="fp-btn" style={{ ...styles.primaryPill, width: "100%" }} onClick={() => goTo(1)}>
+              Начать <UserPlus size={15} />
+            </button>
+          )}
+          {step === 1 && (
+            <button className="fp-btn" style={{ ...styles.primaryPill, width: "100%" }} onClick={handleAddContact} disabled={!firstName.trim() || savingContact}>
+              {savingContact ? <Loader2 size={14} className="fp-pulse" /> : <UserPlus size={15} />}
+              {savingContact ? "Добавляем…" : "Добавить и продолжить"}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* --- Pop-up удержания: попытка закрыть/пропустить пейволл --- */}
       {showExitPopup && (
-        <div className="fp-overlay-anim" style={styles.onboardExitOverlay} onClick={handleDeclineTrial}>
+        // Тап по фону закрывает только сам pop-up (человек возвращается на
+        // пейволл) — на Free его переводит исключительно осознанный тап по
+        // "Нет, спасибо". Раньше случайный тап мимо кнопок сразу же и
+        // необратимо завершал весь онбординг.
+        <div className="fp-overlay-anim" style={styles.onboardExitOverlay} onClick={() => setShowExitPopup(false)}>
           <div className="fp-sheet-anim" style={styles.onboardExitCard} onClick={(e) => e.stopPropagation()}>
             <div style={styles.onboardExitGiftRing}><Gift size={24} color={PURPLE} /></div>
             <div style={styles.onboardExitTitle}>Куда же вы?</div>
