@@ -288,12 +288,18 @@ export default function ForPeople() {
       try {
         const vOnb = await storage.get(storageKey("fp_onboarding_done"), false);
         const onboardingDone = vOnb && vOnb.value === "1";
+        // Дев-хук для ручного тестирования: ?onboarding=1 в адресной строке
+        // форсирует показ онбординга независимо от флага "уже видел" и
+        // наличия контактов — без этого пришлось бы вручную чистить
+        // localStorage/CloudStorage перед каждым повторным прогоном.
+        const forceOnboarding = typeof window !== "undefined"
+          && new URLSearchParams(window.location.search).get("onboarding") === "1";
         // Показываем онбординг только тем, кто и правда открывает приложение
         // впервые (флаг не стоял) и ещё не успел ничего добавить сам —
         // например, вручную через CSV-импорт до того, как онбординг
         // подгрузился. Once seen — не навязываем его повторно даже тем, кто
         // потом удалил все контакты.
-        if (!onboardingDone && contactsIsEmpty) setShowOnboarding(true);
+        if (forceOnboarding || (!onboardingDone && contactsIsEmpty)) setShowOnboarding(true);
       } catch (e) {}
       setLoaded(true);
     })();
