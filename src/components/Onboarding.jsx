@@ -391,7 +391,12 @@ export default function Onboarding({
               {claimingTrial ? <Loader2 size={14} className="fp-pulse" /> : <Gift size={14} />}
               {claimingTrial ? "Активируем…" : "Забрать неделю бесплатно"}
             </button>
-            <button className="fp-btn" style={styles.secondaryPill} onClick={handleDeclineTrial}>Нет, спасибо</button>
+            {/* secondaryPill рассчитан на пару кнопок в flex-row — там
+               горизонтальный отступ появляется за счёт flex:1-растяжения,
+               сам padding по горизонтали нулевой. Здесь кнопка одна и не в
+               flex-контейнере, поэтому без явного width+padding текст
+               садится вплотную к обводке. */}
+            <button className="fp-btn" style={{ ...styles.secondaryPill, width: "100%", padding: "13px 20px" }} onClick={handleDeclineTrial}>Нет, спасибо</button>
           </div>
         </div>
       )}
