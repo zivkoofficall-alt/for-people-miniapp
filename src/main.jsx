@@ -2,6 +2,8 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
 import App from "./App.jsx";
+import AdminApp from "./AdminApp.jsx";
+import { getAdminLaunchMode } from "./adminLaunch.js";
 
 // Инициализация Telegram Web App (если открыто внутри Telegram)
 const tg = window.Telegram && window.Telegram.WebApp;
@@ -47,9 +49,21 @@ if (tg) {
 // старт приложения. Если reload уже вызван, рендерить нечего: страница
 // сейчас перезагрузится и main.jsx выполнится заново с нуля.
 if (!forcingReload) {
+  const isAdminLaunch = getAdminLaunchMode().mode !== null;
+
+  // Тихая регистрация визита в базе — не блокирует запуск и не мешает
+  // работе аппа, если сеть недоступна или запрос не удался.
+  if (!isAdminLaunch && tg?.initData) {
+    fetch("/api/user-ping", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ initData: tg.initData }),
+    }).catch(() => {});
+  }
+
   ReactDOM.createRoot(document.getElementById("root")).render(
     <React.StrictMode>
-      <App />
+      {isAdminLaunch ? <AdminApp /> : <App />}
     </React.StrictMode>
   );
 }
