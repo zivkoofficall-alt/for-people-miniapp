@@ -29,6 +29,9 @@ import adminChatList from "./_admin/admin-chat-list.js";
 import adminChatSend from "./_admin/admin-chat-send.js";
 import adminHeatmap from "./_admin/admin-heatmap.js";
 import adminHomeStats from "./_admin/admin-home-stats.js";
+import adminAlertsList from "./_admin/admin-alerts-list.js";
+import adminAlertsSave from "./_admin/admin-alerts-save.js";
+import adminAlertsTest from "./_admin/admin-alerts-test.js";
 
 const routes = {
   "admin-session": adminSession,
@@ -50,6 +53,9 @@ const routes = {
   "admin-chat-send": adminChatSend,
   "admin-heatmap": adminHeatmap,
   "admin-home-stats": adminHomeStats,
+  "admin-alerts-list": adminAlertsList,
+  "admin-alerts-save": adminAlertsSave,
+  "admin-alerts-test": adminAlertsTest,
 };
 
 export default async function handler(req, res) {
