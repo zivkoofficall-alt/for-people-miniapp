@@ -84,6 +84,7 @@ import { describeScreenshotBug, transcribeVoice, expandBugReports } from "./_lib
 import { getRepoFileList, isGithubConfigured, updateRepoFile } from "./_lib/github.js";
 import { getGeminiStatus, markGeminiOk, markGeminiError } from "./_lib/geminiStatus.js";
 import { sendMessage, getAllowedChatIds, notifyAllAdmins } from "./_lib/telegramNotify.js";
+import { isAlertEnabled } from "./_lib/alertSettings.js";
 
 function todayStr() {
   return new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" });
@@ -96,7 +97,7 @@ function todayStr() {
  */
 async function handleGeminiFailure(botToken, err) {
   const shouldNotify = await markGeminiError(err);
-  if (shouldNotify) {
+  if (shouldNotify && (await isAlertEnabled(1))) {
     await notifyAllAdmins(
       botToken,
       [
@@ -105,6 +106,37 @@ async function handleGeminiFailure(botToken, err) {
         "Проверить статус в любой момент: /gemini",
       ].join("\n")
     );
+  }
+}
+
+// Порог "всплеска" багов и окно, за которое он считается — совпадает с
+// текстом алерта "Больше 5 новых баг-репортов за час" на экране Алерты.
+const BUG_SPIKE_THRESHOLD = 5;
+const BUG_SPIKE_WINDOW_MS = 60 * 60 * 1000;
+
+/**
+ * Вызывать после КАЖДОГО insertRows в bug_reports. Считает, сколько багов
+ * пришло за последний час, и шлёт алерт один раз — ровно в момент, когда
+ * счётчик впервые переваливает порог (а не на каждом следующем баге).
+ * Ошибка здесь не должна ронять сохранение самого баг-репорта.
+ */
+async function maybeNotifyBugSpike(botToken) {
+  try {
+    if (!(await isAlertEnabled(2))) return;
+    const since = new Date(Date.now() - BUG_SPIKE_WINDOW_MS).toISOString();
+    const recent = await selectRows("bug_reports", `created_at=gt.${encodeURIComponent(since)}&select=id`);
+    const count = recent?.length || 0;
+    if (count === BUG_SPIKE_THRESHOLD + 1) {
+      await notifyAllAdmins(
+        botToken,
+        [
+          `🚨 Всплеск баг-репортов: ${count} за последний час.`,
+          "Похоже, что-то массово ломается — стоит посмотреть /status или список в админке.",
+        ].join("\n")
+      );
+    }
+  } catch (e) {
+    console.error("bug spike check failed", e);
   }
 }
 
@@ -230,6 +262,7 @@ async function handleBugBotUpdate(update, botToken) {
       await markGeminiOk();
       const finalText = `[Скриншот] ${description}`;
       await insertRows("bug_reports", [{ chat_id: chatId, message: finalText, sender_name: from, message_id: msg.message_id }]);
+      await maybeNotifyBugSpike(botToken);
       await sendMessage(botToken, chatId, `Добавлено в буфер ✅\n${finalText}`);
     } catch (err) {
       console.error("describeScreenshotBug error", err);
@@ -251,6 +284,7 @@ async function handleBugBotUpdate(update, botToken) {
       if (!transcript) throw new Error("пустая транскрипция");
       await markGeminiOk();
       await insertRows("bug_reports", [{ chat_id: chatId, message: transcript, sender_name: from, message_id: msg.message_id }]);
+      await maybeNotifyBugSpike(botToken);
       await sendMessage(botToken, chatId, `Добавлено в буфер ✅ (по голосовому)\n${transcript}`);
     } catch (err) {
       console.error("transcribeVoice error", err);
@@ -436,6 +470,7 @@ async function handleBugBotUpdate(update, botToken) {
   // Обычное текстовое сообщение (не команда) — копим в буфер.
   if (!text.startsWith("/")) {
     await insertRows("bug_reports", [{ chat_id: chatId, message: text, sender_name: from, message_id: msg.message_id }]);
+    await maybeNotifyBugSpike(botToken);
     await sendMessage(botToken, chatId, "Добавлено в буфер ✅ (/status — посмотреть, /endpoint — собрать промпт)");
     return true;
   }
