@@ -4,8 +4,8 @@
 // цифры + 3 последних записи журнала. Раньше эти цифры считались на
 // фронте из тестовых данных — теперь берутся из реальных таблиц.
 
-import { requireAdmin } from "./_lib/adminAuth.js";
-import { selectRows } from "./_lib/supabaseRest.js";
+import { requireAdmin } from "../_lib/adminAuth.js";
+import { selectRows } from "../_lib/supabaseRest.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });

@@ -1,6 +1,6 @@
 // api/admin-chat-send.js
-import { requireAdmin } from "./_lib/adminAuth.js";
-import { insertRows } from "./_lib/supabaseRest.js";
+import { requireAdmin } from "../_lib/adminAuth.js";
+import { insertRows } from "../_lib/supabaseRest.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });

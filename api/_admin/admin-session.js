@@ -9,7 +9,7 @@
 // → 200 { admin: {...} }         — доступ есть
 // → 401/403 { error: string }    — доступа нет
 
-import { requireAdmin } from "./_lib/adminAuth.js";
+import { requireAdmin } from "../_lib/adminAuth.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {

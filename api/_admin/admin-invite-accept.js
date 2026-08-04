@@ -10,8 +10,8 @@
 // → 200 { admin: {...} }             — доступ выдан
 // → 400/401/404/409 { error: string } — приглашение недействительно
 
-import { validateInitData } from "./_lib/telegramAuth.js";
-import { selectRows, updateRows, upsertRow } from "./_lib/supabaseRest.js";
+import { validateInitData } from "../_lib/telegramAuth.js";
+import { selectRows, updateRows, upsertRow } from "../_lib/supabaseRest.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {

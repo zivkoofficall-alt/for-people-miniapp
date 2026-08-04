@@ -4,8 +4,8 @@
 // action: "delete" { id }                              — удалить один репорт
 // action: "clearSent" {}                                 — удалить все уже отправленные
 
-import { requireAdmin, hasPermission } from "./_lib/adminAuth.js";
-import { updateRows, deleteRows } from "./_lib/supabaseRest.js";
+import { requireAdmin, hasPermission } from "../_lib/adminAuth.js";
+import { updateRows, deleteRows } from "../_lib/supabaseRest.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });

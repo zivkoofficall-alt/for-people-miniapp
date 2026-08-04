@@ -2,9 +2,9 @@
 //
 // action: "toggle" — включить/выключить (active = !active)
 // action: "delete" — удалить код совсем
-import { requireAdmin, hasPermission } from "./_lib/adminAuth.js";
-import { selectRows, updateRows, deleteRows } from "./_lib/supabaseRest.js";
-import { logAdminAction } from "./_lib/auditLog.js";
+import { requireAdmin, hasPermission } from "../_lib/adminAuth.js";
+import { selectRows, updateRows, deleteRows } from "../_lib/supabaseRest.js";
+import { logAdminAction } from "../_lib/auditLog.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });

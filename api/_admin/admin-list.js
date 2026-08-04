@@ -7,8 +7,8 @@
 // POST { initData }
 // → 200 { admins: [...], pendingInvites: [...] }
 
-import { requireAdmin, hasPermission } from "./_lib/adminAuth.js";
-import { selectRows } from "./_lib/supabaseRest.js";
+import { requireAdmin, hasPermission } from "../_lib/adminAuth.js";
+import { selectRows } from "../_lib/supabaseRest.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {

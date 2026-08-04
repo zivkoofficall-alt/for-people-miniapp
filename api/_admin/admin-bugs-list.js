@@ -4,8 +4,8 @@
 // Telegram через /endpoint — см. api/telegram-webhook.js). Статусы в базе
 // всего два: "pending" (ещё не собран в промпт) и "sent" (уже забрали).
 
-import { requireAdmin, hasPermission } from "./_lib/adminAuth.js";
-import { selectRows } from "./_lib/supabaseRest.js";
+import { requireAdmin, hasPermission } from "../_lib/adminAuth.js";
+import { selectRows } from "../_lib/supabaseRest.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });

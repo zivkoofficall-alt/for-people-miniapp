@@ -6,8 +6,8 @@
 // заново, без сокетов/реалтайма, этого достаточно для внутреннего чата
 // команды из нескольких человек.
 
-import { requireAdmin } from "./_lib/adminAuth.js";
-import { selectRows, upsertRow } from "./_lib/supabaseRest.js";
+import { requireAdmin } from "../_lib/adminAuth.js";
+import { selectRows, upsertRow } from "../_lib/supabaseRest.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });

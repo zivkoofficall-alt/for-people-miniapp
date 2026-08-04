@@ -1,6 +1,6 @@
 // api/admin-audit-list.js
-import { requireAdmin, hasPermission } from "./_lib/adminAuth.js";
-import { selectRows } from "./_lib/supabaseRest.js";
+import { requireAdmin, hasPermission } from "../_lib/adminAuth.js";
+import { selectRows } from "../_lib/supabaseRest.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });

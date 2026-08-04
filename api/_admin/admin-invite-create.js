@@ -9,9 +9,9 @@
 // → 200 { token, path }   — path нужно приклеить к вашей t.me-ссылке мини-аппа
 
 import crypto from "crypto";
-import { requireAdmin, hasPermission } from "./_lib/adminAuth.js";
-import { insertRows } from "./_lib/supabaseRest.js";
-import { logAdminAction } from "./_lib/auditLog.js";
+import { requireAdmin, hasPermission } from "../_lib/adminAuth.js";
+import { insertRows } from "../_lib/supabaseRest.js";
+import { logAdminAction } from "../_lib/auditLog.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {

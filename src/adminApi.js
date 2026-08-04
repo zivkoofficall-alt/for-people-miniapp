@@ -10,11 +10,11 @@ function getInitData() {
   return (typeof window !== "undefined" && window.Telegram?.WebApp?.initData) || "";
 }
 
-async function callAdmin(path, body) {
-  const res = await fetch(`/api/${path}`, {
+async function callAdmin(route, body) {
+  const res = await fetch(`/api/admin`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ initData: getInitData(), ...body }),
+    body: JSON.stringify({ ...body, _route: route, initData: getInitData() }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {

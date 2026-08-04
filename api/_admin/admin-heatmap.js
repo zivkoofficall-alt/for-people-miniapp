@@ -5,8 +5,8 @@
 // 28 дней. Отдельной таблицы для этого не нужно — используем то, что
 // уже пишется при каждом действии (см. api/_lib/auditLog.js).
 
-import { requireAdmin, hasPermission } from "./_lib/adminAuth.js";
-import { selectRows } from "./_lib/supabaseRest.js";
+import { requireAdmin, hasPermission } from "../_lib/adminAuth.js";
+import { selectRows } from "../_lib/supabaseRest.js";
 
 // 0=Пн ... 6=Вс, чтобы совпадало с HEATMAP_DAYS во фронте.
 function isoWeekday(date) {

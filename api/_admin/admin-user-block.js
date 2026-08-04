@@ -9,9 +9,9 @@
 // POST { initData, chatId, blocked }
 // → 200 { ok: true }
 
-import { requireAdmin, hasPermission } from "./_lib/adminAuth.js";
-import { updateRows } from "./_lib/supabaseRest.js";
-import { logAdminAction } from "./_lib/auditLog.js";
+import { requireAdmin, hasPermission } from "../_lib/adminAuth.js";
+import { updateRows } from "../_lib/supabaseRest.js";
+import { logAdminAction } from "../_lib/auditLog.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
