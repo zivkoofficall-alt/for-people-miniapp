@@ -29,6 +29,19 @@ import adminChatList from "./_admin/admin-chat-list.js";
 import adminChatSend from "./_admin/admin-chat-send.js";
 import adminHeatmap from "./_admin/admin-heatmap.js";
 import adminHomeStats from "./_admin/admin-home-stats.js";
+import adminAlertsList from "./_admin/admin-alerts-list.js";
+import adminAlertsSave from "./_admin/admin-alerts-save.js";
+import adminAlertsTest from "./_admin/admin-alerts-test.js";
+import adminReferralsList from "./_admin/admin-referrals-list.js";
+import adminLoginHistoryList from "./_admin/admin-login-history-list.js";
+import adminLoginHistoryDelete from "./_admin/admin-login-history-delete.js";
+import adminUserSetPlan from "./_admin/admin-user-set-plan.js";
+import adminUserActivity from "./_admin/admin-user-activity.js";
+import adminUserDeleteData from "./_admin/admin-user-delete-data.js";
+import admin2faRequest from "./_admin/admin-2fa-request.js";
+import admin2faVerify from "./_admin/admin-2fa-verify.js";
+import adminPricingGet from "./_admin/admin-pricing-get.js";
+import adminPricingSave from "./_admin/admin-pricing-save.js";
 
 const routes = {
   "admin-session": adminSession,
@@ -50,6 +63,19 @@ const routes = {
   "admin-chat-send": adminChatSend,
   "admin-heatmap": adminHeatmap,
   "admin-home-stats": adminHomeStats,
+  "admin-alerts-list": adminAlertsList,
+  "admin-alerts-save": adminAlertsSave,
+  "admin-alerts-test": adminAlertsTest,
+  "admin-referrals-list": adminReferralsList,
+  "admin-login-history-list": adminLoginHistoryList,
+  "admin-login-history-delete": adminLoginHistoryDelete,
+  "admin-2fa-request": admin2faRequest,
+  "admin-2fa-verify": admin2faVerify,
+  "admin-pricing-get": adminPricingGet,
+  "admin-pricing-save": adminPricingSave,
+  "admin-user-set-plan": adminUserSetPlan,
+  "admin-user-activity": adminUserActivity,
+  "admin-user-delete-data": adminUserDeleteData,
 };
 
 export default async function handler(req, res) {

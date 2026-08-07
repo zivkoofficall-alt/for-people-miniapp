@@ -18,7 +18,7 @@ import {
   ShieldQuestion, Hourglass,
   Moon, Sun, Layers,
 } from "lucide-react";
-import { fetchAdminSession, acceptAdminInvite, createAdminInvite, fetchAdminList, revokeAdminAccess, updateAdminPermissions, fetchAdminUsers, setUserBlocked, fetchPromoCodes, createPromoCode, togglePromoCode, deletePromoCode, fetchTransactions, fetchBugs, updateBug, fetchAuditLog, fetchHomeStats, fetchTeamChat, sendTeamChatMessage, fetchAdminHeatmap } from "./adminApi";
+import { fetchAdminSession, acceptAdminInvite, createAdminInvite, fetchAdminList, revokeAdminAccess, updateAdminPermissions, fetchAdminUsers, setUserBlocked, fetchPromoCodes, createPromoCode, togglePromoCode, deletePromoCode, fetchTransactions, fetchBugs, updateBug, fetchAuditLog, fetchHomeStats, fetchTeamChat, sendTeamChatMessage, fetchAdminHeatmap, fetchAlertSettings, saveAlertSetting, sendTestAlert, fetchReferrals, fetchLoginHistory, deleteLoginHistoryEntry, requestTwoFactorCode, verifyTwoFactorCode, fetchPricing, savePricing, setUserPlan, fetchUserActivity, deleteUserData } from "./adminApi";
 import { getAdminLaunchMode } from "./adminLaunch";
 
 /* ============================================================
@@ -138,10 +138,10 @@ const s = {
   toast: { position: "fixed", left: "50%", bottom: 96, transform: "translateX(-50%)", background: INK, color: "#fff", padding: "11px 18px", borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 90, whiteSpace: "nowrap", maxWidth: "calc(100% - 40px)", overflow: "hidden", textOverflow: "ellipsis", boxShadow: "0 10px 24px rgba(0,0,0,0.25)" },
 };
 
-function Switch({ on, onToggle }) {
+function Switch({ on, onToggle, disabled }) {
   return (
-    <button type="button" className="fp-btn" onClick={onToggle}
-      style={{ background: "none", border: "none", padding: 0, margin: 0, display: "inline-flex", alignItems: "center", flexShrink: 0, lineHeight: 0 }}>
+    <button type="button" className="fp-btn" onClick={disabled ? undefined : onToggle} disabled={disabled}
+      style={{ background: "none", border: "none", padding: 0, margin: 0, display: "inline-flex", alignItems: "center", flexShrink: 0, lineHeight: 0, opacity: disabled ? 0.6 : 1, cursor: disabled ? "default" : "pointer" }}>
       <span className="fp-switch" style={{ background: on ? PURPLE_GRADIENT : "var(--fp-scrollbar)" }}>
         <span className="fp-switch-knob" style={{ transform: on ? "translateX(18px)" : "translateX(0)" }} />
       </span>
@@ -171,13 +171,40 @@ function PermissionRow({ itemKey, label, on, onToggle, disabled, last }) {
 }
 
 function TwoFactorSheet({ title, hint, rateLimited, onCancel, onConfirm }) {
-  const [sentCode] = useState(() => String(Math.floor(1000 + Math.random() * 9000)));
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
+  const [sending, setSending] = useState(true); // true при первом монтировании — отправляем код сразу
+  const [sendError, setSendError] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
-  function submit() {
-    if (input.trim() !== sentCode) { setError("Код не совпадает — проверьте и попробуйте снова"); return; }
-    onConfirm();
+  function send() {
+    setSending(true);
+    setSendError("");
+    setError("");
+    requestTwoFactorCode()
+      .then(() => {
+        setCooldown(30);
+        const t = setInterval(() => setCooldown((c) => (c <= 1 ? (clearInterval(t), 0) : c - 1)), 1000);
+      })
+      .catch((e) => setSendError(e.message || "Не удалось отправить код"))
+      .finally(() => setSending(false));
+  }
+  useEffect(send, []);
+
+  async function submit() {
+    if (input.trim().length !== 6 || verifying) return;
+    setVerifying(true);
+    setError("");
+    try {
+      const result = await verifyTwoFactorCode(input.trim());
+      if (result.ok) onConfirm();
+      else setError(result.reason || "Код не совпадает");
+    } catch (e) {
+      setError(e.message || "Не удалось проверить код");
+    } finally {
+      setVerifying(false);
+    }
   }
 
   return (
@@ -193,19 +220,28 @@ function TwoFactorSheet({ title, hint, rateLimited, onCancel, onConfirm }) {
             <Hourglass size={13} /> Слишком много критичных действий подряд — нужно доп. подтверждение
           </div>
         )}
-        <div style={{ ...s.banner, background: "#E7EEFC", color: "#3F6FCB", marginBottom: 14 }}>
-          <Smartphone size={13} /> Код отправлен в Telegram (демо): <b style={{ marginLeft: 4 }}>{sentCode}</b>
-        </div>
+        {sendError ? (
+          <div style={{ ...s.banner, background: DANGER_BG, color: DANGER, marginBottom: 14 }}>
+            <CircleAlert size={13} /> {sendError}
+          </div>
+        ) : (
+          <div style={{ ...s.banner, background: "#E7EEFC", color: "#3F6FCB", marginBottom: 14 }}>
+            <Smartphone size={13} /> {sending ? "Отправляем код в Telegram…" : "Код отправлен вам в Telegram"}
+          </div>
+        )}
         <input
-          value={input} onChange={(e) => { setInput(e.target.value); setError(""); }} autoFocus inputMode="numeric" maxLength={4}
+          value={input} onChange={(e) => { setInput(e.target.value); setError(""); }} autoFocus inputMode="numeric" maxLength={6}
           placeholder="Введите код из Telegram"
-          style={{ ...s.fieldInput, textAlign: "center", letterSpacing: "0.3em", fontSize: 18, fontWeight: 700, marginBottom: error ? 8 : 16, border: error ? `1.5px solid ${DANGER}` : CARD_BORDER }}
+          style={{ ...s.fieldInput, textAlign: "center", letterSpacing: "0.3em", fontSize: 18, fontWeight: 700, marginBottom: error ? 8 : 10, border: error ? `1.5px solid ${DANGER}` : CARD_BORDER }}
           onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
         />
-        {error && <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: DANGER, marginBottom: 12 }}><CircleAlert size={12} /> {error}</div>}
+        {error && <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: DANGER, marginBottom: 10 }}><CircleAlert size={12} /> {error}</div>}
+        <button type="button" className="fp-btn" onClick={send} disabled={sending || cooldown > 0} style={{ background: "none", border: "none", padding: 0, fontSize: 12, color: cooldown > 0 ? MUTED_SOFT : PURPLE, fontWeight: 700, marginBottom: 16, cursor: cooldown > 0 ? "default" : "pointer" }}>
+          {cooldown > 0 ? `Отправить ещё раз через ${cooldown}с` : "Отправить код ещё раз"}
+        </button>
         <div style={{ display: "flex", gap: 10 }}>
           <button type="button" className="fp-btn" onClick={onCancel} style={{ ...s.secondaryPill, flex: 1 }}>Отмена</button>
-          <button type="button" className="fp-btn" onClick={submit} disabled={input.length < 4} style={{ ...s.primaryPill, flex: 1 }}>Подтвердить</button>
+          <button type="button" className="fp-btn" onClick={submit} disabled={input.trim().length !== 6 || verifying} style={{ ...s.primaryPill, flex: 1 }}>{verifying ? "Проверяем…" : "Подтвердить"}</button>
         </div>
       </div>
     </div>
@@ -279,16 +315,6 @@ function ListSkeleton({ rows = 4 }) {
 }
 
 /* ---------------- Демо-данные ---------------- */
-
-const INITIAL_USERS = [
-  { id: 1, name: "Аня Ковалёва", tg: "@ankova", plan: "pro", joined: "12 мар 2026", contacts: 84, tasks: 12, goals: 3, lastActive: "сегодня", blocked: false },
-  { id: 2, name: "Игорь Петров", tg: "@igpetrov", plan: "free", joined: "3 апр 2026", contacts: 21, tasks: 4, goals: 1, lastActive: "вчера", blocked: false },
-  { id: 3, name: "Марина Соколова", tg: "@m_sokolova", plan: "pro", joined: "28 фев 2026", contacts: 156, tasks: 27, goals: 5, lastActive: "2 часа назад", blocked: false },
-  { id: 4, name: "Дени Рахимов", tg: "@denirah", plan: "free", joined: "19 июн 2026", contacts: 9, tasks: 2, goals: 0, lastActive: "5 дней назад", blocked: false },
-  { id: 5, name: "Света Орлова", tg: "@sveta_o", plan: "free", joined: "7 июл 2026", contacts: 33, tasks: 6, goals: 2, lastActive: "сегодня", blocked: true },
-  { id: 6, name: "Кирилл Ким", tg: "@k_kim", plan: "pro", joined: "15 янв 2026", contacts: 210, tasks: 41, goals: 8, lastActive: "3 часа назад", blocked: false },
-  { id: 7, name: "Ольга Титова", tg: "@olgatitova", plan: "free", joined: "22 июл 2026", contacts: 5, tasks: 1, goals: 0, lastActive: "неделю назад", blocked: false },
-];
 
 const INITIAL_TRANSACTIONS = [
   { id: 1001, user: "Марина Соколова", tg: "@m_sokolova", amount: 599, status: "success", type: "Подписка Pro", time: "сегодня, 14:12" },
@@ -483,50 +509,10 @@ const INITIAL_ALERTS = [
   { id: 4, name: "Платёж не прошёл", hint: "Ошибка оплаты Stars у Pro-пользователя", enabled: false },
 ];
 
-const USER_DATA_BY_ID = {
-  1: {
-    contacts: [
-      { id: 1, name: "Дядя Слава", note: "День рождения 14 марта" },
-      { id: 2, name: "Марго (коллега)", note: "Обещала прислать контакты дизайнера" },
-      { id: 3, name: "Тренер Олег", note: "Тренировки вт/чт 19:00" },
-    ],
-    tasks: [
-      { id: 1, text: "Позвонить дяде Славе поздравить", done: false },
-      { id: 2, text: "Отправить бриф Марго", done: true },
-      { id: 3, text: "Записаться к тренеру на март", done: false },
-    ],
-    goals: [
-      { id: 1, text: "Пробежать 10км без остановки", progress: 60 },
-      { id: 2, text: "Прочитать 12 книг за год", progress: 25 },
-    ],
-    chat: [
-      { role: "user", text: "напомни позвонить дяде славе 14 марта" },
-      { role: "bot", text: "Готово! Добавила напоминание на 14 марта — «Позвонить дяде Славе поздравить»." },
-      { role: "user", text: "почему уведомление пришло на час позже?" },
-      { role: "bot", text: "Похоже на расхождение часового пояса устройства — передам разработчикам." },
-    ],
-  },
-};
-const DEFAULT_USER_DATA = {
-  contacts: [{ id: 1, name: "—", note: "Нет данных в демо для этого пользователя" }],
-  tasks: [{ id: 1, text: "—", done: false }],
-  goals: [{ id: 1, text: "—", progress: 0 }],
-  chat: [{ role: "bot", text: "История переписки появится, когда пользователь напишет боту." }],
-};
-function getUserData(id) { return USER_DATA_BY_ID[id] || DEFAULT_USER_DATA; }
-
-const PRESENCE_DEMO = { name: "Настя (модератор)", note: "тоже сейчас смотрит этот профиль" };
-
 const INITIAL_TEMPLATES = [
   { id: 1, name: "Новый дизайн", text: "Обновили дизайн приложения — загляните в раздел «Цели» 👀", scheduled: null },
   { id: 2, name: "Скидка выходного дня", text: "Только сегодня: −30% на Pro по промокоду WEEKEND30", scheduled: "суббота, 10:00" },
   { id: 3, name: "Праздничное поздравление", text: "С праздником! Дарим 7 дней Pro всем активным пользователям 🎉", scheduled: null },
-];
-
-const REFERRAL_DATA = [
-  { id: 1, referrer: "Кирилл Ким", referredCount: 4, bonusEarned: 280, referred: ["Света Орлова", "Дени Рахимов", "+2 ещё"] },
-  { id: 2, referrer: "Марина Соколова", referredCount: 2, bonusEarned: 140, referred: ["Игорь Петров", "Ольга Титова"] },
-  { id: 3, referrer: "Аня Ковалёва", referredCount: 1, bonusEarned: 70, referred: ["Кирилл Ким"] },
 ];
 
 const INITIAL_ONBOARDING = [
@@ -599,13 +585,6 @@ const INITIAL_TEAM_CHAT = [
   { id: 4, author: "Вы", role: "super", text: "Кстати, подняли цену Pro до 599 — если будут вопросы от пользователей, ссылайся на акцию весной", time: "сегодня, 09:10", mention: null },
 ];
 
-
-const LOGIN_HISTORY = [
-  { id: 1, device: "iPhone · Telegram in-app", location: "Москва, Россия", time: "сейчас", current: true },
-  { id: 2, device: "Chrome · macOS", location: "Москва, Россия", time: "вчера, 21:14" },
-  { id: 3, device: "Chrome · Windows", location: "Санкт-Петербург, Россия", time: "3 дня назад" },
-  { id: 4, device: "Safari · iPhone", location: "Стамбул, Турция", time: "9 дней назад" },
-];
 
 const SESSION_IDLE_LIMIT_MS = 5 * 60 * 1000;
 const SESSION_WARNING_MS = 60 * 1000;
@@ -834,14 +813,13 @@ function formatRelativeTime(isoString) {
   return new Date(isoString).toLocaleDateString("ru-RU");
 }
 
-function UsersScreen() {
+function UsersScreen({ onOpenUser }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState([]);
   const [listError, setListError] = useState("");
-  const [acting, setActing] = useState(null); // chatId, для кого открыто окно действий
 
   function load(search) {
     setLoading(true); setListError("");
@@ -857,17 +835,6 @@ function UsersScreen() {
     return () => clearTimeout(t);
   }, [query]);
 
-  async function toggleBlock(u) {
-    try {
-      await setUserBlocked(u.chatId, !u.blocked);
-      setActing(null);
-      load(query.trim() || undefined);
-    } catch (e) {
-      setListError(e.message || "Не получилось изменить статус");
-      setActing(null);
-    }
-  }
-
   const filtered = useMemo(() => {
     return users.filter((u) => {
       if (filter === "pro") return u.plan === "pro";
@@ -878,7 +845,6 @@ function UsersScreen() {
   }, [users, filter]);
 
   const visible = filtered.slice(0, page * PAGE_SIZE);
-  const actingUser = users.find((u) => u.chatId === acting);
 
   return (
     <div className="fp-screen">
@@ -909,7 +875,7 @@ function UsersScreen() {
         <>
       <div style={{ fontSize: 12, color: MUTED, fontWeight: 600, marginBottom: 10 }}>{filtered.length} из {users.length}</div>
       {visible.map((u) => (
-        <button key={u.chatId} type="button" className="fp-row" onClick={() => setActing(u.chatId)} style={{ ...s.listRow, width: "100%", textAlign: "left" }}>
+        <button key={u.chatId} type="button" className="fp-row" onClick={() => onOpenUser(u)} style={{ ...s.listRow, width: "100%", textAlign: "left" }}>
           <div style={s.avatarBubble(PURPLE_SOFT, PURPLE)}>{(u.name || u.tgUsername || "?").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase()}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -933,129 +899,116 @@ function UsersScreen() {
       )}
         </>
       )}
-
-      {actingUser && (
-        <div style={s.overlay} onClick={() => setActing(null)}>
-          <div style={s.sheet} onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, fontSize: 17, marginBottom: 4 }}>{actingUser.name || "Без имени"}</div>
-            <div style={{ fontSize: 12.5, color: MUTED, marginBottom: 18 }}>{actingUser.tgUsername ? `@${actingUser.tgUsername}` : actingUser.chatId} · {actingUser.plan === "pro" ? "Pro" : "Free"}</div>
-            <button type="button" className="fp-btn" onClick={() => toggleBlock(actingUser)} style={{ ...(actingUser.blocked ? s.primaryPill : s.dangerGhost), width: "100%" }}>
-              {actingUser.blocked ? "Разблокировать" : "Заблокировать"}
-            </button>
-            <button type="button" className="fp-btn" onClick={() => setActing(null)} style={{ ...s.secondaryPill, width: "100%", marginTop: 10 }}>Закрыть</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
 const USER_TABS = [
-  { key: "contacts", label: "Контакты" },
-  { key: "tasks", label: "Задачи" },
-  { key: "goals", label: "Цели" },
+  { key: "bugs", label: "Баги" },
+  { key: "referrals", label: "Рефералы" },
 ];
 
-function UserDetailScreen({ user, onTogglePlan, onToggleBlock, role, onOpenChat, onDeleteData, isRateLimited, registerDangerousAction }) {
+function UserDetailScreen({ user, onTogglePlan, onToggleBlock, role, isRateLimited, registerDangerousAction, notify }) {
   const [pending, setPending] = useState(null); // 'plan' | 'block' | null
   const [awaiting2FA, setAwaiting2FA] = useState(null); // { action, reason } | null
-  const [tab, setTab] = useState("contacts");
-  const [data, setData] = useState(() => getUserData(user?.id));
+  const [tab, setTab] = useState("bugs");
+  const [activity, setActivity] = useState(null); // null = грузится
+  const [activityError, setActivityError] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [confirmText, setConfirmText] = useState("");
 
-  useEffect(() => { setData(getUserData(user?.id)); setTab("contacts"); }, [user?.id]);
+  useEffect(() => {
+    if (!user?.chatId) return;
+    setActivity(null);
+    setActivityError("");
+    fetchUserActivity(user.chatId)
+      .then(setActivity)
+      .catch((e) => setActivityError(e.message || "Не удалось загрузить активность"));
+    setTab("bugs");
+  }, [user?.chatId]);
 
   if (!user) return null;
-  const showPresence = user.id === 1;
 
   function confirmReason(reason) {
     setAwaiting2FA({ action: pending, reason });
     setPending(null);
   }
-  function confirm2FA() {
-    if (awaiting2FA.action === "plan") onTogglePlan(user.id, awaiting2FA.reason);
-    if (awaiting2FA.action === "block") onToggleBlock(user.id, awaiting2FA.reason);
-    if (awaiting2FA.action === "delete") {
-      setData({ contacts: [], tasks: [], goals: [], chat: data.chat });
-      onDeleteData(user);
+  async function confirm2FA() {
+    try {
+      if (awaiting2FA.action === "plan") await onTogglePlan(user, awaiting2FA.reason);
+      if (awaiting2FA.action === "block") await onToggleBlock(user, awaiting2FA.reason);
+      if (awaiting2FA.action === "delete") {
+        await deleteUserData(user.chatId, awaiting2FA.reason);
+        notify(`Данные ${user.name || user.chatId} удалены`);
+      }
+      registerDangerousAction();
+      setAwaiting2FA(null);
+    } catch (e) {
+      notify(e.message || "Не удалось выполнить действие");
+      setAwaiting2FA(null);
     }
-    registerDangerousAction();
-    setAwaiting2FA(null);
-  }
-  function removeItem(key, id) {
-    setData((prev) => ({ ...prev, [key]: prev[key].filter((it) => it.id !== id) }));
-  }
-  function toggleTaskDone(id) {
-    setData((prev) => ({ ...prev, tasks: prev.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)) }));
   }
 
   return (
     <div className="fp-screen">
-      {showPresence && (
-        <div style={{ ...s.banner, background: "#E7EEFC", color: "#3F6FCB" }}>
-          <Radio size={14} /> {PRESENCE_DEMO.name} {PRESENCE_DEMO.note}
-        </div>
-      )}
       <div style={{ ...s.card, textAlign: "center", paddingTop: 22, paddingBottom: 20 }}>
         <div style={{ width: 68, height: 68, borderRadius: 20, background: PURPLE_SOFT, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, fontSize: 24, color: PURPLE }}>
-          {user.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+          {(user.name || user.tgUsername || "?").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase()}
         </div>
-        <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, fontSize: 18 }}>{user.name}</div>
-        <div style={{ fontSize: 13, color: MUTED, marginTop: 2 }}>{user.tg}</div>
+        <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, fontSize: 18 }}>{user.name || "Без имени"}</div>
+        <div style={{ fontSize: 13, color: MUTED, marginTop: 2 }}>{user.tgUsername ? `@${user.tgUsername}` : user.chatId}</div>
         <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 10 }}>
           <span style={s.badge(user.plan === "pro" ? "#FBEEDD" : "#EEF", user.plan === "pro" ? GOLD : MUTED)}>{user.plan === "pro" ? "Pro" : "Free"}</span>
           {user.blocked && <span style={s.badge(DANGER_BG, DANGER)}>заблокирован</span>}
         </div>
       </div>
 
-      <button type="button" className="fp-btn" onClick={() => onOpenChat(user.id)} style={{ ...s.secondaryPill, width: "100%", marginBottom: 14 }}>
-        <MessageSquare size={15} /> Переписка с ботом
-      </button>
-
       <div style={{ display: "flex", gap: 7, marginBottom: 10 }}>
         {USER_TABS.map((t) => (
           <button key={t.key} type="button" className="fp-btn" onClick={() => setTab(t.key)}
             style={{ flex: 1, padding: "9px 0", borderRadius: 12, fontSize: 12.5, fontWeight: 700, textAlign: "center", background: tab === t.key ? PURPLE_GRADIENT : CARD_BG, color: tab === t.key ? "#fff" : INK, border: tab === t.key ? "none" : CARD_BORDER, boxShadow: tab === t.key ? PURPLE_GRADIENT_SHADOW : "none" }}>
-            {t.label} · {data[t.key].length}
+            {t.label}{activity ? ` · ${t.key === "bugs" ? activity.bugs.length : activity.referred.length}` : ""}
           </button>
         ))}
       </div>
 
-      {tab === "contacts" && data.contacts.map((c) => (
-        <div key={c.id} style={s.rowCard}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700, color: INK }}>{c.name}</div>
-            <div style={{ fontSize: 11.5, color: MUTED, marginTop: 1 }}>{c.note}</div>
-          </div>
-          <button type="button" className="fp-btn" onClick={() => removeItem("contacts", c.id)} style={{ padding: 2 }}><Trash2 size={15} color={DANGER} /></button>
-        </div>
-      ))}
-      {tab === "tasks" && data.tasks.map((t) => (
-        <div key={t.id} style={s.rowCard}>
-          <button type="button" className="fp-btn" onClick={() => toggleTaskDone(t.id)} style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${t.done ? SUCCESS : "rgba(11,11,16,0.2)"}`, background: t.done ? SUCCESS : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            {t.done && <Check size={13} color="#fff" />}
-          </button>
-          <div style={{ flex: 1, fontSize: 13, color: t.done ? MUTED : INK, textDecoration: t.done ? "line-through" : "none" }}>{t.text}</div>
-          <button type="button" className="fp-btn" onClick={() => removeItem("tasks", t.id)} style={{ padding: 2 }}><Trash2 size={15} color={DANGER} /></button>
-        </div>
-      ))}
-      {tab === "goals" && data.goals.map((g) => (
-        <div key={g.id} style={{ ...s.rowCard, flexDirection: "column", alignItems: "stretch" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <div style={{ fontSize: 13, color: INK, flex: 1 }}>{g.text}</div>
-            <button type="button" className="fp-btn" onClick={() => removeItem("goals", g.id)} style={{ padding: 2, marginLeft: 8 }}><Trash2 size={15} color={DANGER} /></button>
-          </div>
-          <div style={{ height: 7, borderRadius: 999, background: "rgba(11,11,16,0.08)", overflow: "hidden" }}>
-            <div style={{ height: "100%", borderRadius: 999, width: `${g.progress}%`, background: PURPLE_GRADIENT }} />
-          </div>
-        </div>
-      ))}
+      {activity === null ? (
+        activityError ? <div style={{ fontSize: 12.5, color: DANGER, marginBottom: 12 }}>{activityError}</div> : <ListSkeleton rows={2} />
+      ) : (
+        <>
+          {tab === "bugs" && (
+            activity.bugs.length === 0 ? (
+              <EmptyState icon={Bug} title="Багов нет" hint="Пользователь ничего не присылал боту" />
+            ) : activity.bugs.map((b) => (
+              <div key={b.id} style={s.rowCard}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, color: INK }}>{b.message}</div>
+                  <div style={{ fontSize: 11, color: MUTED, marginTop: 3 }}>{b.status === "resolved" ? "решено" : b.status === "in_progress" ? "в работе" : "новый"} · {formatRelativeTime(b.created_at)}</div>
+                </div>
+              </div>
+            ))
+          )}
+          {tab === "referrals" && (
+            <>
+              <div style={s.card}>
+                <div style={s.fieldRow}><span style={s.fieldLabel}>Кто привёл</span><span style={{ fontSize: 13, color: MUTED }}>{activity.referredBy || "никто (пришёл сам)"}</span></div>
+                <div style={{ ...s.fieldRow, borderBottom: "none" }}><span style={s.fieldLabel}>Сам привёл</span><span style={{ fontSize: 13, color: MUTED }}>{activity.referred.length}</span></div>
+              </div>
+              {activity.referred.length > 0 && activity.referred.map((r, i) => (
+                <div key={i} style={s.rowCard}>
+                  <div style={{ flex: 1, fontSize: 13, color: INK }}>{r.name}</div>
+                  <div style={{ fontSize: 11.5, color: MUTED }}>{formatRelativeTime(r.time)}</div>
+                </div>
+              ))}
+            </>
+          )}
+        </>
+      )}
 
       <div style={s.sectionLabel}>Информация</div>
       <div style={s.card}>
-        <div style={s.fieldRow}><span style={s.fieldLabel}>Регистрация</span><span style={{ fontSize: 13, color: MUTED }}>{user.joined}</span></div>
-        <div style={{ ...s.fieldRow, borderBottom: "none" }}><span style={s.fieldLabel}>Был в сети</span><span style={{ fontSize: 13, color: MUTED }}>{user.lastActive}</span></div>
+        <div style={s.fieldRow}><span style={s.fieldLabel}>Первый визит</span><span style={{ fontSize: 13, color: MUTED }}>{user.firstSeenAt ? formatRelativeTime(user.firstSeenAt) : "—"}</span></div>
+        <div style={{ ...s.fieldRow, borderBottom: "none" }}><span style={s.fieldLabel}>Был в сети</span><span style={{ fontSize: 13, color: MUTED }}>{formatRelativeTime(user.lastSeenAt)}</span></div>
       </div>
 
       <div style={s.sectionLabel}>Управление</div>
@@ -1081,15 +1034,18 @@ function UserDetailScreen({ user, onTogglePlan, onToggleBlock, role, onOpenChat,
         <>
           <div style={s.sectionLabel}>Данные по запросу пользователя (GDPR)</div>
           <div style={s.card}>
+            <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 10, lineHeight: 1.5 }}>
+              Контакты, задачи и цели хранятся только на устройстве пользователя (Telegram CloudStorage) — сервер их не видит и экспортировать/удалить не может. Ниже — то, что реально есть на сервере.
+            </div>
             <button type="button" className="fp-btn" onClick={() => {
-              downloadCsv(`user-${user.id}-data.csv`, toCsv(
-                [...data.contacts.map((c) => ({ type: "contact", name: c.name, note: c.note })),
-                 ...data.tasks.map((t) => ({ type: "task", name: t.text, note: t.done ? "done" : "pending" })),
-                 ...data.goals.map((g) => ({ type: "goal", name: g.text, note: `${g.progress}%` }))],
-                ["type", "name", "note"]
+              if (!activity) return;
+              downloadCsv(`user-${user.chatId}-data.csv`, toCsv(
+                [...activity.bugs.map((b) => ({ type: "bug_report", value: b.message, note: b.status })),
+                 ...activity.referred.map((r) => ({ type: "referred", value: r.name, note: r.time }))],
+                ["type", "value", "note"]
               ));
-            }} style={{ ...s.secondaryPill, width: "100%", marginBottom: 8 }}>
-              <Download size={14} /> Экспортировать все данные пользователя
+            }} disabled={!activity} style={{ ...s.secondaryPill, width: "100%", marginBottom: 8, opacity: activity ? 1 : 0.5 }}>
+              <Download size={14} /> Экспортировать данные с сервера
             </button>
             <button type="button" className="fp-btn" onClick={() => setDeleting(true)} style={{ ...s.dangerGhost, width: "100%" }}>
               <UserX size={14} /> Удалить данные пользователя безвозвратно
@@ -1122,10 +1078,10 @@ function UserDetailScreen({ user, onTogglePlan, onToggleBlock, role, onOpenChat,
           <div style={s.sheet} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <UserX size={18} color={DANGER} />
-              <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, fontSize: 17 }}>Удалить данные {user.name}?</div>
+              <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, fontSize: 17 }}>Удалить данные {user.name || user.chatId}?</div>
             </div>
             <div style={{ fontSize: 13, color: MUTED, marginBottom: 14, lineHeight: 1.5 }}>
-              Все контакты, задачи и цели будут стёрты безвозвратно. Это действие соответствует «праву на забвение» и попадёт в журнал.
+              Баг-репорты и реферальные связи на сервере будут стёрты безвозвратно, запись пользователя удалена.
               Наберите <b style={{ color: INK }}>УДАЛИТЬ</b>, чтобы подтвердить.
             </div>
             <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="УДАЛИТЬ" style={{ ...s.fieldInput, marginBottom: 14, textAlign: "center" }} />
@@ -1139,29 +1095,6 @@ function UserDetailScreen({ user, onTogglePlan, onToggleBlock, role, onOpenChat,
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function UserChatScreen({ user }) {
-  if (!user) return null;
-  const data = getUserData(user.id);
-  return (
-    <div className="fp-screen">
-      <div style={{ ...s.banner, background: PURPLE_SOFT, color: PURPLE }}>
-        <Book size={14} /> Только для чтения — переписка {user.name} с AI-ассистентом в мини-аппе
-      </div>
-      {data.chat.map((m, i) => (
-        <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start", marginBottom: 9 }}>
-          <div style={{
-            maxWidth: "80%", padding: "10px 14px", fontSize: 13.5, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word",
-            borderRadius: m.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
-            background: m.role === "user" ? PURPLE_GRADIENT : CARD_BG,
-            color: m.role === "user" ? "#fff" : INK,
-            border: m.role === "user" ? "none" : CARD_BORDER,
-          }}>{m.text}</div>
-        </div>
-      ))}
     </div>
   );
 }
@@ -1313,6 +1246,22 @@ function PaymentScreen({ settings, setSettings, notify, onPriceChange, isRateLim
   const [priceOld, setPriceOld] = useState(String(settings.priceOld));
   const [error, setError] = useState("");
   const [awaiting2FA, setAwaiting2FA] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [loadingPrice, setLoadingPrice] = useState(true);
+
+  // Реальная цена (та же, что видит api/create-stars-invoice.js) может
+  // отличаться от дефолта 599/1999, зашитого в начальный useState settings
+  // на верхнем уровне — подтягиваем актуальное значение с сервера.
+  useEffect(() => {
+    fetchPricing()
+      .then(({ priceStars: ps, priceOld: po }) => {
+        setSettings((s0) => ({ ...s0, priceStars: ps, priceOld: po ?? s0.priceOld }));
+        setPriceStars(String(ps));
+        setPriceOld(String(po ?? ""));
+      })
+      .catch(() => {}) // не удалось — остаёмся на локальном дефолте, не блокируем экран
+      .finally(() => setLoadingPrice(false));
+  }, []);
 
   function toggleMethod(key) {
     const enabledCount = Object.values({ ...settings.methods, [key]: !settings.methods[key] }).filter(Boolean).length;
@@ -1330,15 +1279,29 @@ function PaymentScreen({ settings, setSettings, notify, onPriceChange, isRateLim
       setAwaiting2FA({ newPrice, newOld: newOld || settings.priceOld });
       return;
     }
-    setSettings((s0) => ({ ...s0, priceOld: newOld || s0.priceOld }));
-    notify("Настройки оплаты сохранены");
+    // Меняется только "старая цена" (для зачёркнутой отметки скидки) — это
+    // не критично, 2FA не требуется, но всё равно реально сохраняем.
+    savePricing(settings.priceStars, newOld || settings.priceOld)
+      .then(() => {
+        setSettings((s0) => ({ ...s0, priceOld: newOld || s0.priceOld }));
+        notify("Настройки оплаты сохранены");
+      })
+      .catch((e) => notify(e.message || "Не удалось сохранить"));
   }
-  function confirm2FA() {
-    onPriceChange(settings.priceStars, awaiting2FA.newPrice);
-    setSettings((s0) => ({ ...s0, priceStars: awaiting2FA.newPrice, priceOld: awaiting2FA.newOld }));
-    registerDangerousAction();
-    setAwaiting2FA(null);
-    notify("Цена обновлена");
+  async function confirm2FA() {
+    setSaving(true);
+    try {
+      await savePricing(awaiting2FA.newPrice, awaiting2FA.newOld);
+      onPriceChange(settings.priceStars, awaiting2FA.newPrice);
+      setSettings((s0) => ({ ...s0, priceStars: awaiting2FA.newPrice, priceOld: awaiting2FA.newOld }));
+      registerDangerousAction();
+      setAwaiting2FA(null);
+      notify("Цена обновлена — новые счета уже выставляются по ней");
+    } catch (e) {
+      notify(e.message || "Не удалось сохранить цену на сервере");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -2181,13 +2144,57 @@ function ExportScreen({ users, transactions, promos, notify }) {
 }
 
 function AlertsScreen({ notify }) {
-  const [alerts, setAlerts] = useState(INITIAL_ALERTS);
-  function toggle(id) { setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, enabled: !a.enabled } : a))); }
-  function test(name) { notify(`Тестовый алерт «${name}» отправлен в Telegram`); }
+  // Локально держим только метаданные (имя/подсказку) — они статичны.
+  // Реальное вкл/выкл каждого алерта грузим из Supabase, а не берём
+  // как раньше сразу из INITIAL_ALERTS (тот сбрасывался при перезагрузке).
+  const [alerts, setAlerts] = useState(INITIAL_ALERTS.map((a) => ({ ...a, enabled: null }))); // null = ещё грузится
+  const [savingId, setSavingId] = useState(null);
+  const [testingId, setTestingId] = useState(null);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    fetchAlertSettings()
+      .then(({ settings }) => {
+        setAlerts((prev) => prev.map((a) => ({ ...a, enabled: settings?.[a.id] ?? a.enabled ?? true })));
+      })
+      .catch((e) => {
+        setLoadError(e.message || "Не удалось загрузить настройки — показаны значения по умолчанию");
+        setAlerts((prev) => prev.map((a) => ({ ...a, enabled: INITIAL_ALERTS.find((i) => i.id === a.id)?.enabled ?? true })));
+      });
+  }, []);
+
+  async function toggle(id) {
+    const current = alerts.find((a) => a.id === id);
+    const next = !current.enabled;
+    setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, enabled: next } : a)));
+    setSavingId(id);
+    try {
+      await saveAlertSetting(id, next);
+    } catch (e) {
+      // Не удалось сохранить — откатываем тумблер и объясняем, что показанное на экране не сохранилось.
+      setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, enabled: !next } : a)));
+      notify(e.message || "Не удалось сохранить — попробуйте ещё раз");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function test(a) {
+    setTestingId(a.id);
+    try {
+      await sendTestAlert(a.name);
+      notify(`Тестовый алерт «${a.name}» отправлен вам в Telegram`);
+    } catch (e) {
+      notify(e.message || "Не получилось отправить — проверьте, что бот вам не заблокирован");
+    } finally {
+      setTestingId(null);
+    }
+  }
 
   return (
     <div className="fp-screen">
       <div style={{ ...s.banner, background: AMBER_BG, color: AMBER }}><BellRing size={14} /> Срабатывания уходят в админ-чат Telegram сразу, а не по жалобе</div>
+      {loadError && <div style={{ fontSize: 12, color: DANGER, marginBottom: 10 }}>{loadError}</div>}
       {alerts.map((a) => (
         <div key={a.id} style={s.card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
@@ -2195,10 +2202,18 @@ function AlertsScreen({ notify }) {
               <div style={{ fontSize: 14, fontWeight: 700, color: INK, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{a.name}</div>
               <div style={{ fontSize: 11.5, color: MUTED, marginTop: 2 }}>{a.hint}</div>
             </div>
-            <Switch on={a.enabled} onToggle={() => toggle(a.id)} />
+            {a.enabled === null ? (
+              <div style={{ width: 40, height: 22, borderRadius: 999, background: "var(--fp-border)", opacity: 0.5 }} />
+            ) : (
+              <Switch on={a.enabled} onToggle={() => toggle(a.id)} disabled={savingId === a.id} />
+            )}
           </div>
-          <button type="button" className="fp-btn" onClick={() => test(a.name)} disabled={!a.enabled} style={{ ...s.secondaryPill, width: "100%", padding: "9px 0", fontSize: 12.5, opacity: a.enabled ? 1 : 0.5 }}>
-            Отправить тестовый алерт
+          <button
+            type="button" className="fp-btn" onClick={() => test(a)}
+            disabled={!a.enabled || testingId === a.id}
+            style={{ ...s.secondaryPill, width: "100%", padding: "9px 0", fontSize: 12.5, opacity: a.enabled ? 1 : 0.5 }}
+          >
+            {testingId === a.id ? "Отправляем…" : "Отправить тестовый алерт"}
           </button>
         </div>
       ))}
@@ -2207,13 +2222,28 @@ function AlertsScreen({ notify }) {
 }
 
 function ReferralScreen() {
-  const totalBonus = REFERRAL_DATA.reduce((sum, r) => sum + r.bonusEarned, 0);
-  const totalReferred = REFERRAL_DATA.reduce((sum, r) => sum + r.referredCount, 0);
+  const [referrers, setReferrers] = useState(null); // null = грузится
+  const [listError, setListError] = useState("");
+
+  useEffect(() => {
+    fetchReferrals().then(({ referrers }) => setReferrers(referrers)).catch((e) => setListError(e.message || "Не удалось загрузить"));
+  }, []);
+
+  if (referrers === null) {
+    return (
+      <div className="fp-screen">
+        {listError ? <div style={{ fontSize: 12.5, color: DANGER, marginBottom: 12 }}>{listError}</div> : <ListSkeleton rows={3} />}
+      </div>
+    );
+  }
+
+  const totalBonus = referrers.reduce((sum, r) => sum + r.bonusEarned, 0);
+  const totalReferred = referrers.reduce((sum, r) => sum + r.referredCount, 0);
   return (
     <div className="fp-screen">
       <div style={s.statGrid}>
         <div style={{ ...s.statCard, gridColumn: "span 2" }}>
-          <div style={{ fontSize: 10.5, color: MUTED_SOFT, marginBottom: 5, fontWeight: 600 }}>Начислено бонусов</div>
+          <div style={{ fontSize: 10.5, color: MUTED_SOFT, marginBottom: 5, fontWeight: 600 }}>Начислено AI-запросов бонусом</div>
           <div style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, fontSize: 19 }}><Star size={16} color={PURPLE} fill={PURPLE} /> {totalBonus}</div>
         </div>
         <div style={s.statCard}>
@@ -2222,12 +2252,14 @@ function ReferralScreen() {
         </div>
       </div>
       <div style={s.sectionLabel}>Топ по рефералам</div>
-      {REFERRAL_DATA.map((r) => (
-        <div key={r.id} style={s.card}>
+      {referrers.length === 0 ? (
+        <EmptyState icon={GitBranch} title="Пока никого" hint="Как только кто-то откроет апп по реферальной ссылке друга — появится здесь" />
+      ) : referrers.map((r) => (
+        <div key={r.chatId} style={s.card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={s.avatarBubble(PURPLE_SOFT, PURPLE)}><GitBranch size={16} /></div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: INK, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{r.referrer}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: INK, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{r.name}</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, fontWeight: 700, color: GOLD }}><Star size={12} color={GOLD} fill={GOLD} /> {r.bonusEarned}</div>
           </div>
@@ -2435,30 +2467,47 @@ function WebhookScreen({ notify }) {
 }
 
 function LoginHistoryScreen({ notify }) {
-  const [entries, setEntries] = useState(LOGIN_HISTORY);
-  function revoke(id) {
-    setEntries((prev) => prev.filter((e) => e.id !== id));
-    notify("Сессия завершена на этом устройстве");
+  const [entries, setEntries] = useState(null); // null = грузится
+  const [listError, setListError] = useState("");
+
+  function load() {
+    fetchLoginHistory().then(({ entries }) => setEntries(entries)).catch((e) => setListError(e.message || "Не удалось загрузить"));
   }
+  useEffect(load, []);
+
+  async function remove(id) {
+    const prev = entries;
+    setEntries((cur) => cur.filter((e) => e.id !== id));
+    try {
+      await deleteLoginHistoryEntry(id);
+      notify("Запись удалена из истории");
+    } catch (e) {
+      setEntries(prev);
+      notify(e.message || "Не получилось удалить запись");
+    }
+  }
+
   return (
     <div className="fp-screen">
-      <div style={{ ...s.banner, background: "#E7EEFC", color: "#3F6FCB" }}><Smartphone size={14} /> Где ещё выполнен вход в этот аккаунт</div>
-      {entries.map((e) => (
+      <div style={{ ...s.banner, background: "#E7EEFC", color: "#3F6FCB" }}><Smartphone size={14} /> Реальные входы в панель — по User-Agent и IP, без выдуманных городов</div>
+      {entries === null ? (
+        listError ? <div style={{ fontSize: 12.5, color: DANGER }}>{listError}</div> : <ListSkeleton rows={3} />
+      ) : entries.length === 0 ? (
+        <EmptyState icon={Smartphone} title="Пока пусто" hint="Записи появятся после следующего входа в панель" />
+      ) : entries.map((e) => (
         <div key={e.id} style={s.card}>
           <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
             <div style={s.avatarBubble(e.current ? SUCCESS_BG : INPUT_BG, e.current ? SUCCESS : MUTED)}>
-              {e.device.includes("iPhone") ? <Smartphone size={17} /> : <Monitor size={17} />}
+              {e.device.includes("iPhone") || e.device.includes("iPad") || e.device.includes("Android") ? <Smartphone size={17} /> : <Monitor size={17} />}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ fontSize: 13.5, fontWeight: 700, color: INK }}>{e.device}</span>
-                {e.current && <span style={s.badge(SUCCESS_BG, SUCCESS)}>это устройство</span>}
+                {e.current && <span style={s.badge(SUCCESS_BG, SUCCESS)}>последний вход</span>}
               </div>
-              <div style={{ fontSize: 11.5, color: MUTED, marginTop: 2 }}>{e.location} · {e.time}</div>
+              <div style={{ fontSize: 11.5, color: MUTED, marginTop: 2 }}>{e.ip} · {formatRelativeTime(e.time)}</div>
             </div>
-            {!e.current && (
-              <button type="button" className="fp-btn" onClick={() => revoke(e.id)} style={{ padding: 6 }}><X size={16} color={DANGER} /></button>
-            )}
+            <button type="button" className="fp-btn" onClick={() => remove(e.id)} style={{ padding: 6 }} title="Удалить запись из истории"><X size={16} color={DANGER} /></button>
           </div>
         </div>
       ))}
@@ -2634,11 +2683,15 @@ function WidgetsScreen({ widgets, setWidgets, notify }) {
   );
 }
 
-function buildMentionables(bugs) {
-  return [
-    ...INITIAL_USERS.map((u) => ({ type: "user", id: u.id, label: u.name })),
-    ...bugs.map((b) => ({ type: "bug", id: b.id, label: b.message.slice(0, 30) + (b.message.length > 30 ? "…" : "") })),
-  ];
+/* Иконка + подпись категории для строки в выпадающем списке @упоминаний */
+const MENTION_KIND_META = {
+  admin: { icon: Shield, color: PURPLE },
+  user: { icon: UsersIcon, color: "#3F6FCB" },
+  bug: { icon: Bug, color: DANGER },
+};
+
+function slugifyMention(raw) {
+  return String(raw || "").replace(/^@/, "").trim().replace(/\s+/g, "_") || "user";
 }
 
 function TeamChatScreen() {
@@ -2647,6 +2700,7 @@ function TeamChatScreen() {
   const [sending, setSending] = useState(false);
   const [listError, setListError] = useState("");
   const scrollRef = useRef(null);
+  const inputRef = useRef(null);
 
   function load() {
     fetchTeamChat().then(({ messages }) => setMessages(messages)).catch((e) => setListError(e.message || "Не удалось загрузить"));
@@ -2659,10 +2713,93 @@ function TeamChatScreen() {
 
   useEffect(() => { scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight); }, [messages]);
 
+  // Данные для @упоминаний — грузим один раз при открытии экрана. Каждый
+  // источник грузится независимо: если прав не хватает (например, список
+  // юзеров доступен не всем ролям) — просто не будет этой категории.
+  const [mentionPool, setMentionPool] = useState({ admins: [], users: [], bugs: [] });
+  useEffect(() => {
+    fetchAdminList().then(({ admins }) => setMentionPool((p) => ({ ...p, admins: admins || [] }))).catch(() => {});
+    fetchAdminUsers("").then(({ users }) => setMentionPool((p) => ({ ...p, users: (users || []).slice(0, 60) }))).catch(() => {});
+    fetchBugs().then(({ bugs }) => setMentionPool((p) => ({ ...p, bugs: (bugs || []).filter((b) => b.status !== "sent").slice(0, 40) }))).catch(() => {});
+  }, []);
+
+  // mention = { query, start, end } пока пользователь набирает "@..." | null
+  const [mention, setMention] = useState(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+
+  const mentionResults = useMemo(() => {
+    if (!mention) return [];
+    const q = mention.query.toLowerCase();
+    const admins = mentionPool.admins
+      .filter((a) => `${a.name || ""} ${a.tgUsername || ""}`.toLowerCase().includes(q))
+      .map((a) => ({
+        kind: "admin", key: `a${a.chatId}`,
+        label: a.name || a.tgUsername || "Админ",
+        sub: a.role === "super" ? "Супер-админ" : "Админ команды",
+        insert: slugifyMention(a.tgUsername || a.name),
+      }));
+    const users = mentionPool.users
+      .filter((u) => `${u.name || ""} ${u.tgUsername || ""}`.toLowerCase().includes(q))
+      .map((u) => ({
+        kind: "user", key: `u${u.chatId}`,
+        label: u.name || u.tgUsername || "Пользователь",
+        sub: u.plan === "pro" ? "Pro" : "Free",
+        insert: slugifyMention(u.tgUsername || u.name),
+      }));
+    const bugs = mentionPool.bugs
+      .filter((b) => `${b.message || ""} ${b.id}`.toLowerCase().includes(q))
+      .map((b) => ({
+        kind: "bug", key: `b${b.id}`,
+        label: (b.message || `Баг #${b.id}`).slice(0, 44),
+        sub: b.senderName ? `от ${b.senderName}` : "баг-репорт",
+        insert: `bug${b.id}`,
+      }));
+    return [...admins, ...users, ...bugs].slice(0, 6);
+  }, [mention, mentionPool]);
+
+  function handleDraftChange(e) {
+    const val = e.target.value;
+    const pos = e.target.selectionStart ?? val.length;
+    setDraft(val);
+    const uptoCursor = val.slice(0, pos);
+    const m = uptoCursor.match(/(?:^|\s)@([^\s@]*)$/);
+    if (m) {
+      setMention({ query: m[1], start: pos - m[1].length - 1, end: pos });
+      setMentionIndex(0);
+    } else {
+      setMention(null);
+    }
+  }
+
+  function selectMention(item) {
+    if (!mention) return;
+    const before = draft.slice(0, mention.start);
+    const after = draft.slice(mention.end);
+    const inserted = `@${item.insert} `;
+    const next = `${before}${inserted}${after}`;
+    setDraft(next);
+    setMention(null);
+    requestAnimationFrame(() => {
+      const posn = (before + inserted).length;
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(posn, posn);
+    });
+  }
+
+  function handleKeyDown(e) {
+    if (mention && mentionResults.length > 0) {
+      if (e.key === "ArrowDown") { e.preventDefault(); setMentionIndex((i) => (i + 1) % mentionResults.length); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); setMentionIndex((i) => (i - 1 + mentionResults.length) % mentionResults.length); return; }
+      if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); selectMention(mentionResults[mentionIndex]); return; }
+      if (e.key === "Escape") { setMention(null); return; }
+    }
+    if (e.key === "Enter") send();
+  }
+
   async function send() {
     const text = draft.trim();
     if (!text || sending) return;
-    setSending(true); setDraft("");
+    setSending(true); setDraft(""); setMention(null);
     try {
       await sendTeamChatMessage(text);
       load();
@@ -2700,15 +2837,51 @@ function TeamChatScreen() {
 
       {listError && <div style={{ fontSize: 12, color: DANGER, marginBottom: 8 }}>{listError}</div>}
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, background: CARD_BG, border: CARD_BORDER, borderRadius: 999, padding: "6px 6px 6px 16px", boxShadow: CARD_SHADOW }}>
-        <input
-          style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: INK, fontSize: 14 }}
-          placeholder="Написать команде…" value={draft} onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") send(); }}
-        />
-        <button type="button" className="fp-btn" onClick={send} disabled={sending} style={{ width: 38, height: 38, borderRadius: "50%", background: PURPLE_GRADIENT, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: PURPLE_GRADIENT_SHADOW, flexShrink: 0, opacity: sending ? 0.6 : 1 }}>
-          <Send size={16} color="#fff" />
-        </button>
+      <div style={{ position: "relative" }}>
+        {mention && mentionResults.length > 0 && (
+          <div style={{
+            position: "absolute", left: 0, right: 0, bottom: "calc(100% + 8px)",
+            background: CARD_BG, border: CARD_BORDER, borderRadius: 16, boxShadow: CARD_SHADOW,
+            overflow: "hidden", zIndex: 5,
+          }}>
+            {mentionResults.map((item, i) => {
+              const meta = MENTION_KIND_META[item.kind];
+              const Icon = meta.icon;
+              return (
+                <button
+                  type="button" key={item.key}
+                  onMouseDown={(e) => { e.preventDefault(); selectMention(item); }}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 12px",
+                    background: i === mentionIndex ? PURPLE_SOFT : "transparent", border: "none",
+                    borderBottom: i < mentionResults.length - 1 ? CARD_BORDER : "none", cursor: "pointer", textAlign: "left",
+                  }}
+                >
+                  <div style={{ width: 26, height: 26, borderRadius: "50%", background: `${meta.color}1A`, color: meta.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Icon size={13} />
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</div>
+                    <div style={{ fontSize: 11, color: MUTED_SOFT, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.sub}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, background: CARD_BG, border: CARD_BORDER, borderRadius: 999, padding: "6px 6px 6px 16px", boxShadow: CARD_SHADOW }}>
+          <input
+            ref={inputRef}
+            style={{ flex: 1, background: "transparent", border: "none", outline: "none", color: INK, fontSize: 14 }}
+            placeholder="Написать команде… (@ для упоминания)" value={draft}
+            onChange={handleDraftChange}
+            onKeyDown={handleKeyDown}
+          />
+          <button type="button" className="fp-btn" onClick={send} disabled={sending} style={{ width: 38, height: 38, borderRadius: "50%", background: PURPLE_GRADIENT, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: PURPLE_GRADIENT_SHADOW, flexShrink: 0, opacity: sending ? 0.6 : 1 }}>
+            <Send size={16} color="#fff" />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -3510,7 +3683,7 @@ const TAB_ITEMS = [
   { key: "more", label: "Ещё", icon: MoreHorizontal },
 ];
 const TITLES = {
-  home: "Главная", users: "Пользователи", userDetail: "Профиль", userChat: "Переписка с ботом", promo: "Промокоды",
+  home: "Главная", users: "Пользователи", userDetail: "Профиль", promo: "Промокоды",
   payment: "Оплата и цены", model: "AI-модель", bugs: "Баг-репорты", assistant: "AI-ассистент",
   more: "Ещё", about: "О панели", audit: "Журнал действий",
   transactions: "Транзакции", revenue: "Отчёт по выручке",
@@ -3526,18 +3699,18 @@ const TITLES = {
   templates: "Шаблоны ролей", templateDetail: "Шаблон роли",
 };
 const TOP_LEVEL = new Set(["home", "users", "promo", "more"]);
-const USERS_TAB_SCREENS = new Set(["userDetail", "userChat"]);
+const USERS_TAB_SCREENS = new Set(["userDetail"]);
 const MORE_TAB_SCREENS = new Set(Object.keys(TITLES).filter((k) => !TOP_LEVEL.has(k) && !USERS_TAB_SCREENS.has(k)));
 
 export default function AdminApp() {
   const [session, setSession] = useState(null); // { role } | null
   const [stack, setStack] = useState(["home"]);
-  const [users, setUsers] = useState(INITIAL_USERS);
+
   const [promos, setPromos] = useState(INITIAL_PROMOS);
   const [auditLog, setAuditLog] = useState(INITIAL_AUDIT_LOG);
   const [transactions] = useState(INITIAL_TRANSACTIONS);
   const [priceHistory, setPriceHistory] = useState(PRICE_HISTORY);
-  const [selectedUserId, setSelectedUserId] = useState(null);
+  const [selectedUser, setSelectedUser] = useState(null); // объект реального пользователя (см. openUser)
   const [toast, setToast] = useState("");
   const [settings, setSettings] = useState({
     methods: { stars: true, card: false, sbp: false },
@@ -3644,7 +3817,7 @@ export default function AdminApp() {
   function push(scr) { if (scr === "teamChat") setUnreadChat(0); setStack((st) => [...st, scr]); }
   function back() { setStack((st) => (st.length > 1 ? st.slice(0, -1) : st)); }
   function goTab(key) { setStack([key]); }
-  function openUser(id) { setSelectedUserId(id); push("userDetail"); }
+  function openUser(user) { setSelectedUser(user); push("userDetail"); }
   function openAdminRole(id) { setSelectedAdminId(id); push("adminRole"); }
   function openTemplateDetail(id) { setSelectedTemplateId(id); push("templateDetail"); }
   function createRoleTemplate(label) {
@@ -3707,26 +3880,25 @@ export default function AdminApp() {
     setAuditLog((prev) => [{ id: Date.now(), actor: session?.role === "super" ? "Вы (супер-админ)" : "Вы (модератор)", action, reason, time: "только что" }, ...prev]);
   }
 
-  function togglePlan(id, reason) {
-    const u = users.find((x) => x.id === id);
-    setUsers((prev) => prev.map((x) => (x.id === id ? { ...x, plan: x.plan === "pro" ? "free" : "pro" } : x)));
-    logAction(`${u.plan === "pro" ? "Забрали" : "Выдали"} Pro у ${u.name}`, reason);
+  // Реально меняют тариф/блокировку через API (было — мутация локального
+  // мока INITIAL_USERS). selectedUser обновляем оптимистично из ответа,
+  // чтобы UserDetailScreen сразу показал актуальное состояние.
+  async function togglePlan(u, reason) {
+    const nextPlan = u.plan === "pro" ? "free" : "pro";
+    await setUserPlan(u.chatId, nextPlan, reason);
+    setSelectedUser((prev) => (prev && prev.chatId === u.chatId ? { ...prev, plan: nextPlan } : prev));
+    logAction(`${u.plan === "pro" ? "Забрали" : "Выдали"} Pro у ${u.name || u.chatId}`, reason);
     notify("Тариф пользователя обновлён");
   }
-  function toggleBlock(id, reason) {
-    const u = users.find((x) => x.id === id);
-    setUsers((prev) => prev.map((x) => (x.id === id ? { ...x, blocked: !x.blocked } : x)));
-    logAction(`${u.blocked ? "Разблокировали" : "Заблокировали"} ${u.name}`, reason);
+  async function toggleBlock(u, reason) {
+    await setUserBlocked(u.chatId, !u.blocked);
+    setSelectedUser((prev) => (prev && prev.chatId === u.chatId ? { ...prev, blocked: !prev.blocked } : prev));
+    logAction(`${u.blocked ? "Разблокировали" : "Заблокировали"} ${u.name || u.chatId}`, reason);
     notify("Статус блокировки обновлён");
   }
   function onPriceChange(from, to) {
     setPriceHistory((prev) => [{ id: Date.now(), from, to, note: "Изменено вручную из панели", time: "только что", actor: "Вы" }, ...prev]);
     logAction(`Изменили цену Pro: ${from} → ${to} Stars`, "Правка в разделе «Оплата и цены»");
-  }
-
-  function onDeleteData(user) {
-    logAction(`Удалили все данные ${user.name} по запросу (право на забвение)`, "Запрос на удаление данных");
-    notify("Данные пользователя удалены");
   }
 
   function onTogglePin(item) {
@@ -3756,7 +3928,6 @@ export default function AdminApp() {
   if (!session) return <LoginGate onSuccess={(s0) => { setSession(s0); setAdminName(s0.name); }} />;
   const role = session.role;
 
-  const selectedUser = users.find((u) => u.id === selectedUserId) || null;
   const navAttentionCount = bugs.filter((b) => b.status !== "resolved").length + unreadChat + (role === "super" ? admins.filter((a) => a.status === "invited").length : 0);
   const guardedScreen = (role === "moderator" && ["payment", "model", "transactions", "revenue", "aiUsage", "flags", "alerts", "referrals", "onboarding", "localization", "snapshots", "secrets", "maintenance", "webhook", "cohorts", "nps", "notes", "widgets", "heatmap", "loginHistory", "roles", "adminRole", "templates", "templateDetail"].includes(screen)) ? "more" : screen;
 
@@ -3766,9 +3937,8 @@ export default function AdminApp() {
       <Header title={TITLES[guardedScreen]} onBack={TOP_LEVEL.has(guardedScreen) ? null : back} identity={{ name: adminName, color: adminColor }} onProfileTap={() => push("profile")} darkMode={darkMode} onToggleDark={() => setDarkMode((d) => !d)} />
       <div style={s.page}>
         {guardedScreen === "home" && <HomeScreen unreadChat={unreadChat} onNav={push} widgets={homeWidgets} priceStars={settings.priceStars} pinned={pinned} role={role} adminName={adminName} />}
-        {guardedScreen === "users" && <UsersScreen />}
-        {guardedScreen === "userDetail" && <UserDetailScreen user={selectedUser} onTogglePlan={togglePlan} onToggleBlock={toggleBlock} role={role} onOpenChat={(id) => { setSelectedUserId(id); push("userChat"); }} onDeleteData={onDeleteData} isRateLimited={isRateLimited} registerDangerousAction={registerDangerousAction} />}
-        {guardedScreen === "userChat" && <UserChatScreen user={selectedUser} />}
+        {guardedScreen === "users" && <UsersScreen onOpenUser={openUser} />}
+        {guardedScreen === "userDetail" && <UserDetailScreen user={selectedUser} onTogglePlan={togglePlan} onToggleBlock={toggleBlock} role={role} isRateLimited={isRateLimited} registerDangerousAction={registerDangerousAction} notify={notify} />}
         {guardedScreen === "promo" && <PromoScreen />}
         {guardedScreen === "payment" && <PaymentScreen settings={settings} setSettings={setSettings} notify={notify} onPriceChange={onPriceChange} isRateLimited={isRateLimited} registerDangerousAction={registerDangerousAction} />}
         {guardedScreen === "model" && <ModelScreen settings={settings} setSettings={setSettings} notify={notify} />}

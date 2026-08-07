@@ -124,3 +124,68 @@ export function fetchAdminHeatmap() {
 export function fetchHomeStats() {
   return callAdmin("admin-home-stats", {});
 }
+
+/** Реальное сохранённое состояние тумблеров на экране "Алерты". */
+export function fetchAlertSettings() {
+  return callAdmin("admin-alerts-list", {});
+}
+
+/** Сохранить вкл/выкл конкретного алерта. */
+export function saveAlertSetting(id, enabled) {
+  return callAdmin("admin-alerts-save", { id, enabled });
+}
+
+/** Отправить реальный тестовый алерт в Telegram (себе). */
+export function sendTestAlert(name) {
+  return callAdmin("admin-alerts-test", { name });
+}
+
+/** Реальные данные по рефералам (кто кого привёл, бонусы) вместо мока. */
+export function fetchReferrals() {
+  return callAdmin("admin-referrals-list", {});
+}
+
+/** Реальная история входов текущего админа (устройство, IP, время) вместо мока. */
+export function fetchLoginHistory() {
+  return callAdmin("admin-login-history-list", {});
+}
+
+/** Удалить запись из истории входов (см. оговорку в admin-login-history-delete.js). */
+export function deleteLoginHistoryEntry(id) {
+  return callAdmin("admin-login-history-delete", { id });
+}
+
+/** Реальный запрос 2FA-кода — уходит в личку в Telegram. */
+export function requestTwoFactorCode() {
+  return callAdmin("admin-2fa-request", {});
+}
+
+/** Реальная проверка 2FA-кода на сервере. */
+export function verifyTwoFactorCode(code) {
+  return callAdmin("admin-2fa-verify", { code });
+}
+
+/** Текущая реальная цена Pro (та же, что видит create-stars-invoice.js). */
+export function fetchPricing() {
+  return callAdmin("admin-pricing-get", {});
+}
+
+/** Сохранить новую цену — сразу влияет на реальные счета. */
+export function savePricing(priceStars, priceOld) {
+  return callAdmin("admin-pricing-save", { priceStars, priceOld });
+}
+
+/** Реально меняет тариф пользователя (было — мутация локального мока). */
+export function setUserPlan(chatId, plan, reason) {
+  return callAdmin("admin-user-set-plan", { chatId, plan, reason });
+}
+
+/** Реальная активность пользователя — баги и рефералы (контакты/задачи/цели сервер не видит). */
+export function fetchUserActivity(chatId) {
+  return callAdmin("admin-user-activity", { chatId });
+}
+
+/** Реальное удаление данных пользователя по праву на забвение. */
+export function deleteUserData(chatId, reason) {
+  return callAdmin("admin-user-delete-data", { chatId, reason });
+}

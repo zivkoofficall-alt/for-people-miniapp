@@ -1,10 +1,10 @@
 import React, { useState } from "react";
-import { X, User, Check, CreditCard, Sparkles, TrendingUp, Star, Loader2, Gift, ExternalLink, CheckCircle2 } from "lucide-react";
+import { X, User, Check, CreditCard, Sparkles, TrendingUp, Star, Loader2, Gift, ExternalLink, CheckCircle2, Copy, Share2, Users } from "lucide-react";
 import { styles, PURPLE } from "../theme.js";
-import { PLAN_FEATURES, PRO_PRICE_LABEL, PRO_PRICE_STARS, PRO_PRICE_STARS_OLD, PAYMENT_METHODS, CHANNEL_URL, CHANNEL_BONUS_AMOUNT } from "../constants.js";
+import { PLAN_FEATURES, PRO_PRICE_LABEL, PRO_PRICE_STARS, PRO_PRICE_STARS_OLD, PAYMENT_METHODS, CHANNEL_URL, CHANNEL_BONUS_AMOUNT, REFERRAL_BONUS_PER_FRIEND } from "../constants.js";
 import { computeContactStats } from "../helpers.js";
 
-export default function Profile({ subscription, aiRequestsLimit, contacts, tasks, onClose, onActivateDemoPro, onActivateProViaStars, onDowngradeToFree, onClaimChannelBonus }) {
+export default function Profile({ subscription, aiRequestsLimit, contacts, tasks, onClose, onActivateDemoPro, onActivateProViaStars, onDowngradeToFree, onClaimChannelBonus, referral, tgUserId }) {
   const [paymentMethod, setPaymentMethod] = useState("stars");
   const [payAttempted, setPayAttempted] = useState(false);
   const [starsLoading, setStarsLoading] = useState(false);
@@ -12,12 +12,38 @@ export default function Profile({ subscription, aiRequestsLimit, contacts, tasks
   const [closing, setClosing] = useState(false);
   const [channelChecking, setChannelChecking] = useState(false);
   const [channelMessage, setChannelMessage] = useState("");
+  const [referralCopied, setReferralCopied] = useState(false);
   function handleClose() { setClosing(true); setTimeout(onClose, 180); }
 
   function handleOpenChannel() {
     const tg = window.Telegram && window.Telegram.WebApp;
     if (tg && tg.openTelegramLink) tg.openTelegramLink(CHANNEL_URL);
     else window.open(CHANNEL_URL, "_blank", "noopener,noreferrer");
+  }
+
+  // Персональная реферальная ссылка — тот же механизм, что уже используется
+  // для приглашений в админку (startapp=inv_..., см. src/adminLaunch.js),
+  // только с префиксом ref_. Реально засчитывается на сервере в
+  // api/user-ping.js, когда по этой ссылке впервые открывает апп новый
+  // человек — здесь только формирование и шаринг ссылки.
+  const miniAppLink = import.meta.env.VITE_MINIAPP_LINK;
+  const referralLink = miniAppLink && tgUserId ? `${miniAppLink}?startapp=ref_${tgUserId}` : null;
+
+  function handleCopyReferralLink() {
+    if (!referralLink) return;
+    navigator.clipboard?.writeText(referralLink).then(() => {
+      setReferralCopied(true);
+      setTimeout(() => setReferralCopied(false), 2000);
+    }).catch(() => {});
+  }
+
+  function handleShareReferralLink() {
+    if (!referralLink) return;
+    const tg = window.Telegram && window.Telegram.WebApp;
+    const text = encodeURIComponent("Присоединяйся ко мне в for people — удобно вести контакты и не забывать про важных людей 👋");
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${text}`;
+    if (tg && tg.openTelegramLink) tg.openTelegramLink(shareUrl);
+    else window.open(shareUrl, "_blank", "noopener,noreferrer");
   }
 
   async function handleCheckChannelSub() {
@@ -181,6 +207,33 @@ export default function Profile({ subscription, aiRequestsLimit, contacts, tasks
             )}
           </div>
         )}
+
+        <div style={styles.channelBonusCard}>
+          <div style={styles.channelBonusHeadRow}>
+            <div style={styles.channelBonusIcon}><Users size={13} color={PURPLE} /></div>
+            <div style={styles.channelBonusTitle}>Пригласить друзей</div>
+            <span style={styles.channelBonusAmountBadge}>+{REFERRAL_BONUS_PER_FRIEND} за каждого</span>
+          </div>
+          <div style={styles.channelBonusText}>
+            {referral?.referredCount > 0
+              ? `Вы привели ${referral.referredCount} ${referral.referredCount === 1 ? "человека" : "человек"} — начислено ${referral.bonusRequests} бонусных AI-запросов.`
+              : "Поделитесь личной ссылкой — как только друг впервые откроет апп по ней, вам начислятся бонусные AI-запросы."}
+          </div>
+          {referralLink ? (
+            <div style={styles.channelBonusRow}>
+              <button className="fp-btn" style={styles.channelBonusBtnGhost} onClick={handleCopyReferralLink}>
+                <Copy size={12} /> {referralCopied ? "Скопировано" : "Копировать"}
+              </button>
+              <button className="fp-btn" style={styles.channelBonusBtnSolid} onClick={handleShareReferralLink}>
+                <Share2 size={12} /> Поделиться
+              </button>
+            </div>
+          ) : (
+            <div style={styles.importError}>
+              Ссылка пока не настроена — задайте VITE_MINIAPP_LINK в .env (см. .env.example), чтобы она появилась здесь.
+            </div>
+          )}
+        </div>
 
         <div style={styles.sectionLabel}>Тарифы</div>
 

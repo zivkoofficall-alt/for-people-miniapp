@@ -58,6 +58,7 @@ export default function ForPeople() {
   const [goals, setGoals] = useState([]); // NEW — цели (Модуль 3D)
   const [celebration, setCelebration] = useState(null); // NEW — конфетти при выполнении цели ({ id, title } | null)
   const [subscription, setSubscription] = useState(emptySubscription()); // NEW — тариф/лимит AI (Модуль 3D)
+  const [referral, setReferral] = useState({ referredCount: 0, bonusRequests: 0 }); // NEW — реферальная программа (сколько друзей привёл, бонус AI-запросов)
   const [loaded, setLoaded] = useState(false);
   const [showSplash, setShowSplash] = useState(true); // NEW — полноэкранный сплэш при старте (Фаза B)
   const [splashClosing, setSplashClosing] = useState(false); // NEW — идёт fade-out сплэша
@@ -303,6 +304,29 @@ export default function ForPeople() {
       } catch (e) {}
       setLoaded(true);
     })();
+  }, []);
+
+  // --- Регистрация визита + реферальная программа ---
+  // Раньше этот же запрос жил в main.jsx как fire-and-forget без обработки
+  // ответа — переехал сюда, потому что теперь нужно прочитать из ответа
+  // сводку по рефералам (сколько друзей привёл, сколько AI-запросов бонусом
+  // накопил). startParam — тот же механизм, что уже используется для
+  // приглашений в админку (см. src/adminLaunch.js): Telegram сам подставляет
+  // его, когда ссылка вида t.me/бот/апп?startapp=ref_<chatId>.
+  useEffect(() => {
+    const tg = typeof window !== "undefined" && window.Telegram && window.Telegram.WebApp;
+    if (!tg || !tg.initData) return;
+    const startParam = tg.initDataUnsafe?.start_param || "";
+    fetch("/api/user-ping", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ initData: tg.initData, startParam }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.referral) setReferral(data.referral);
+      })
+      .catch(() => {});
   }, []);
 
   // Сплэш уходит не мгновенно вместе с loaded=true, а сначала проигрывает
@@ -729,15 +753,16 @@ export default function ForPeople() {
   // --- Подписка / лимит AI-запросов (Модуль 3D) ---
   // Реального биллинга здесь нет (см. Profile.jsx) — это только контроль
   // лимита, чтобы демо-режим free-плана имел смысл в интерфейсе.
-  // effectiveAiLimit — базовый лимит + бонус за подписку на канал, если он
-  // уже получен. Складываем на лету, а не храним готовую сумму в
-  // subscription.aiRequestsLimit, потому что это поле безусловно
-  // перезаписывается значением по умолчанию при каждой загрузке (см. комментарий
-  // у loadWithLegacyMigration("fp_subscription") выше) — "запечённый" бонус
-  // там бы просто исчезал при следующем открытии приложения.
+  // effectiveAiLimit — базовый лимит + бонус за подписку на канал + бонус
+  // за приведённых по реферальной ссылке друзей, если они уже получены.
+  // Реферальный бонус (referral.bonusRequests) приходит с сервера при
+  // каждом открытии (см. useEffect с /api/user-ping выше) — он не хранится
+  // в subscription/localStorage, потому что начисляется НЕ действием самого
+  // пользователя, а действием того, кого он пригласил (сервер — источник
+  // истины, локально его можно только один раз в сессии подтянуть).
   const effectiveAiLimit = subscription.plan === "pro"
     ? subscription.aiRequestsLimit
-    : subscription.aiRequestsLimit + (subscription.channelBonusClaimed ? CHANNEL_BONUS_AMOUNT : 0);
+    : subscription.aiRequestsLimit + (subscription.channelBonusClaimed ? CHANNEL_BONUS_AMOUNT : 0) + (referral.bonusRequests || 0);
   const canUseAi = subscription.plan === "pro" || subscription.aiRequestsUsed < effectiveAiLimit;
   const remainingAi = subscription.plan === "pro" ? Infinity : Math.max(0, effectiveAiLimit - subscription.aiRequestsUsed);
   async function recordAiUsage() {
@@ -1526,6 +1551,8 @@ export default function ForPeople() {
             onActivateProViaStars={handleActivateProViaStars}
             onDowngradeToFree={handleDowngradeToFree}
             onClaimChannelBonus={handleClaimChannelBonus}
+            referral={referral}
+            tgUserId={tgUserId}
           />
         </Suspense>
       )}

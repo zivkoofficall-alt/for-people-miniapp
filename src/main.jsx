@@ -51,16 +51,6 @@ if (tg) {
 if (!forcingReload) {
   const isAdminLaunch = getAdminLaunchMode().mode !== null;
 
-  // Тихая регистрация визита в базе — не блокирует запуск и не мешает
-  // работе аппа, если сеть недоступна или запрос не удался.
-  if (!isAdminLaunch && tg?.initData) {
-    fetch("/api/user-ping", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ initData: tg.initData }),
-    }).catch(() => {});
-  }
-
   ReactDOM.createRoot(document.getElementById("root")).render(
     <React.StrictMode>
       {isAdminLaunch ? <AdminApp /> : <App />}

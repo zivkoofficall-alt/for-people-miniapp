@@ -21,12 +21,14 @@
 //   https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://твой-домен.vercel.app/api/telegram-webhook
 
 import { validateInitData } from "./_lib/telegramAuth.js";
+import { getPricing } from "./_lib/pricingSettings.js";
 
-// Цена в звёздах — единственное место в коде, где она задаётся. Меняешь
-// здесь — меняется и то, что видит пользователь (Profile.jsx берёт цену
-// для отображения из constants.js — если поменяешь цену, поменяй в обоих
-// местах, чтобы витрина и реальный счёт не разъехались).
-const PRO_PRICE_STARS = 599;
+// Цена больше НЕ хардкодится здесь — раньше была захардкожена локальная
+// константа, и панель админа (раздел "Оплата и цены") могла сколько
+// угодно менять её у себя в интерфейсе, реальный счёт всё равно
+// выставлялся по старому значению. Теперь единственный источник правды —
+// таблица pricing_settings (см. api/_lib/pricingSettings.js), в неё же
+// пишет admin-pricing-save.js.
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -47,6 +49,8 @@ export default async function handler(req, res) {
     return;
   }
 
+  const { priceStars } = await getPricing();
+
   try {
     const tgResponse = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
       method: "POST",
@@ -59,7 +63,7 @@ export default async function handler(req, res) {
         // можно было связать оплату с конкретным пользователем в логах.
         payload: JSON.stringify({ tgUserId: auth.user?.id || null, plan: "pro_month" }),
         currency: "XTR", // XTR = Telegram Stars, единственная валюта без provider_token
-        prices: [{ label: "Pro Networker (1 месяц)", amount: PRO_PRICE_STARS }],
+        prices: [{ label: "Pro Networker (1 месяц)", amount: priceStars }],
       }),
     });
     const tgData = await tgResponse.json();
