@@ -18,7 +18,7 @@ import {
   ShieldQuestion, Hourglass,
   Moon, Sun, Layers,
 } from "lucide-react";
-import { fetchAdminSession, acceptAdminInvite, createAdminInvite, fetchAdminList, revokeAdminAccess, updateAdminPermissions, fetchAdminUsers, setUserBlocked, fetchPromoCodes, createPromoCode, togglePromoCode, deletePromoCode, fetchTransactions, fetchBugs, updateBug, fetchAuditLog, fetchHomeStats, fetchTeamChat, sendTeamChatMessage, fetchAdminHeatmap, fetchAlertSettings, saveAlertSetting, sendTestAlert, fetchReferrals, fetchLoginHistory, deleteLoginHistoryEntry, requestTwoFactorCode, verifyTwoFactorCode, fetchPricing, savePricing, setUserPlan, fetchUserActivity, deleteUserData } from "./adminApi";
+import { fetchAdminSession, acceptAdminInvite, createAdminInvite, fetchAdminList, revokeAdminAccess, updateAdminPermissions, fetchAdminUsers, setUserBlocked, fetchPromoCodes, createPromoCode, togglePromoCode, deletePromoCode, fetchTransactions, fetchBugs, updateBug, fetchAuditLog, fetchHomeStats, fetchTeamChat, sendTeamChatMessage, fetchAdminHeatmap, fetchAlertSettings, saveAlertSetting, sendTestAlert, fetchReferrals, fetchLoginHistory, deleteLoginHistoryEntry, requestTwoFactorCode, verifyTwoFactorCode, fetchPricing, savePricing, setUserPlan, fetchUserActivity, deleteUserData, fetchFeatureFlags, saveFeatureFlags, fetchOnboardingSteps, saveOnboardingSteps } from "./adminApi";
 import { getAdminLaunchMode } from "./adminLaunch";
 
 /* ============================================================
@@ -37,8 +37,16 @@ const MUTED = "var(--fp-muted)";
 const MUTED_SOFT = "var(--fp-muted-soft)";
 const PURPLE = "#7C4DFF";
 const PURPLE_SOFT = "var(--fp-purple-soft)";
-const PURPLE_GRADIENT = PURPLE;
-const PURPLE_GRADIENT_SHADOW = "none";
+// Раньше PURPLE_GRADIENT был просто равен PURPLE — то есть был плоским
+// цветом, несмотря на название. Использовался как "градиент" в кнопках,
+// hero-карточке, пузырях чата — планка референсов (Courses/Mooney/Peymen)
+// как раз держится на настоящих мягких диагональных градиентах, так что
+// это самое дешёвое по трудозатратам и самое заметное изменение: оно
+// каскадом применяется на все ~40 экранов панели разом.
+const PURPLE_GRADIENT = "linear-gradient(135deg, #8B6CFB 0%, #6C4CF3 100%)";
+const PURPLE_GRADIENT_SHADOW = "0 8px 20px rgba(124,77,255,0.28)";
+const BLUE = "#3B6FED";
+const BLUE_SOFT = "var(--fp-blue-soft)";
 const BG = "var(--fp-bg)";
 const CARD_BORDER = "1px solid var(--fp-border)";
 const CARD_SHADOW = "var(--fp-shadow)";
@@ -54,18 +62,18 @@ const INPUT_BG = "var(--fp-input-bg)";
 
 const globalCss = `
   :root {
-    --fp-bg: #F5F4F8; --fp-card-bg: #ffffff; --fp-input-bg: #F5F3FA;
-    --fp-ink: #0B0B10; --fp-muted: rgba(11,11,16,0.55); --fp-muted-soft: rgba(11,11,16,0.32);
-    --fp-border: rgba(11,11,16,0.07); --fp-shadow: 0 4px 18px rgba(20,10,50,0.06);
-    --fp-purple-soft: #EDE7FE; --fp-danger-bg: #FCE9E8; --fp-success-bg: #E4F6EE; --fp-amber-bg: #FBEEDD;
-    --fp-hover-bg: #F7F6FB; --fp-active-bg: #F0EEF6; --fp-scrollbar: rgba(11,11,16,0.15);
+    --fp-bg: #F6F5FC; --fp-card-bg: #ffffff; --fp-input-bg: #F3F1FB;
+    --fp-ink: #14121F; --fp-muted: rgba(20,18,31,0.55); --fp-muted-soft: rgba(20,18,31,0.32);
+    --fp-border: rgba(31,20,80,0.07); --fp-shadow: 0 6px 24px rgba(96,68,180,0.08);
+    --fp-purple-soft: #EEE9FE; --fp-blue-soft: #E7EDFD; --fp-danger-bg: #FCE9E8; --fp-success-bg: #E4F6EE; --fp-amber-bg: #FBEEDD;
+    --fp-hover-bg: #F8F7FC; --fp-active-bg: #F1EEFA; --fp-scrollbar: rgba(31,20,80,0.14);
   }
   [data-theme="dark"] {
-    --fp-bg: #121116; --fp-card-bg: #1C1B22; --fp-input-bg: #26242D;
-    --fp-ink: #F2F1F6; --fp-muted: rgba(242,241,246,0.6); --fp-muted-soft: rgba(242,241,246,0.36);
-    --fp-border: rgba(255,255,255,0.09); --fp-shadow: 0 4px 18px rgba(0,0,0,0.35);
-    --fp-purple-soft: rgba(124,77,255,0.22); --fp-danger-bg: rgba(229,72,77,0.18); --fp-success-bg: rgba(34,163,122,0.18); --fp-amber-bg: rgba(181,114,42,0.22);
-    --fp-hover-bg: #24222B; --fp-active-bg: #2A2832; --fp-scrollbar: rgba(255,255,255,0.14);
+    --fp-bg: #131019; --fp-card-bg: #1E1B27; --fp-input-bg: #29253A;
+    --fp-ink: #F3F1FA; --fp-muted: rgba(243,241,250,0.6); --fp-muted-soft: rgba(243,241,250,0.36);
+    --fp-border: rgba(255,255,255,0.09); --fp-shadow: 0 8px 26px rgba(0,0,0,0.4);
+    --fp-purple-soft: rgba(139,108,251,0.22); --fp-blue-soft: rgba(59,111,237,0.2); --fp-danger-bg: rgba(229,72,77,0.18); --fp-success-bg: rgba(34,163,122,0.18); --fp-amber-bg: rgba(181,114,42,0.22);
+    --fp-hover-bg: #26222F; --fp-active-bg: #2C2837; --fp-scrollbar: rgba(255,255,255,0.14);
   }
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,600&family=Inter:wght@400;500;600;700&display=swap');
   * { box-sizing: border-box; }
@@ -225,7 +233,7 @@ function TwoFactorSheet({ title, hint, rateLimited, onCancel, onConfirm }) {
             <CircleAlert size={13} /> {sendError}
           </div>
         ) : (
-          <div style={{ ...s.banner, background: "#E7EEFC", color: "#3F6FCB", marginBottom: 14 }}>
+          <div style={{ ...s.banner, background: BLUE_SOFT, color: BLUE, marginBottom: 14 }}>
             <Smartphone size={13} /> {sending ? "Отправляем код в Telegram…" : "Код отправлен вам в Telegram"}
           </div>
         )}
@@ -627,7 +635,7 @@ function Toast({ text }) {
 
 /* ---------------- Главная (Дашборд) ---------------- */
 
-function HomeScreen({ unreadChat, onNav, widgets, priceStars, pinned, role, adminName }) {
+function HomeScreen({ unreadChat, onNav, widgets, priceStars, pinned, role, adminName, lastScreen, onResume }) {
   const [stats, setStats] = useState(null); // null = грузится
   useEffect(() => {
     fetchHomeStats().then(setStats).catch(() => setStats({ totalUsers: 0, proUsers: 0, revenueStars: 0, openBugs: 0, pendingInvites: 0, recentLog: [] }));
@@ -753,6 +761,19 @@ function HomeScreen({ unreadChat, onNav, widgets, priceStars, pinned, role, admi
           )}
         </button>
       </div>
+
+      {lastScreen && (
+        <button type="button" className="fp-btn" onClick={onResume} style={{ ...s.card, width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 11, padding: 14 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 11, background: PURPLE_SOFT, color: PURPLE, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <RotateCcw size={15} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: MUTED_SOFT, fontWeight: 600 }}>Продолжить</div>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: INK, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{TITLES[lastScreen] || lastScreen}</div>
+          </div>
+          <ChevronRight size={16} color={MUTED_SOFT} />
+        </button>
+      )}
 
       {pinned.length > 0 && (
         <>
@@ -887,7 +908,7 @@ function UsersScreen({ onOpenUser }) {
           {u.blocked ? (
             <span style={s.badge(DANGER_BG, DANGER)}>заблокирован</span>
           ) : (
-            <span style={s.badge(u.plan === "pro" ? "#FBEEDD" : "#EEF" , u.plan === "pro" ? GOLD : MUTED)}>{u.plan === "pro" ? "Pro" : "Free"}</span>
+            <span style={s.badge(u.plan === "pro" ? AMBER_BG : "#EEF" , u.plan === "pro" ? GOLD : MUTED)}>{u.plan === "pro" ? "Pro" : "Free"}</span>
           )}
           <ChevronRight size={16} color={MUTED_SOFT} />
         </button>
@@ -958,7 +979,7 @@ function UserDetailScreen({ user, onTogglePlan, onToggleBlock, role, isRateLimit
         <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, fontSize: 18 }}>{user.name || "Без имени"}</div>
         <div style={{ fontSize: 13, color: MUTED, marginTop: 2 }}>{user.tgUsername ? `@${user.tgUsername}` : user.chatId}</div>
         <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 10 }}>
-          <span style={s.badge(user.plan === "pro" ? "#FBEEDD" : "#EEF", user.plan === "pro" ? GOLD : MUTED)}>{user.plan === "pro" ? "Pro" : "Free"}</span>
+          <span style={s.badge(user.plan === "pro" ? AMBER_BG : "#EEF", user.plan === "pro" ? GOLD : MUTED)}>{user.plan === "pro" ? "Pro" : "Free"}</span>
           {user.blocked && <span style={s.badge(DANGER_BG, DANGER)}>заблокирован</span>}
         </div>
       </div>
@@ -1469,7 +1490,7 @@ function BugReports({ notify }) {
 
   return (
     <div className="fp-screen">
-      <div style={{ ...s.banner, background: "#E7EEFC", color: "#3F6FCB" }}>
+      <div style={{ ...s.banner, background: BLUE_SOFT, color: BLUE }}>
         <ShieldCheck size={14} /> Тот же буфер, что копит бот в Telegram — команда «Собрать промпт» по-прежнему выполняется там, командой /endpoint
       </div>
 
@@ -1519,45 +1540,31 @@ function BugReports({ notify }) {
 
 /* ---------------- AI-ассистент ---------------- */
 
-function AssistantChat({ users, promos, bugs, settings }) {
+function AssistantChat() {
   const [messages, setMessages] = useState([
-    { role: "model", text: "Привет! Я вижу текущие данные панели — спрашивайте про пользователей, промокоды, баги или выручку. Отвечаю по реальным цифрам из этой сессии." },
+    { role: "model", text: "Привет! Спрашивайте про пользователей, промокоды, баги или выручку — отвечаю по реальным данным панели через Gemini." },
   ]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
   const scrollRef = useRef(null);
 
-  useEffect(() => { scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight); }, [messages]);
+  useEffect(() => { scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight); }, [messages, sending]);
 
-  function answerFor(text) {
-    const q = text.toLowerCase();
-    const proCount = users.filter((u) => u.plan === "pro").length;
-    const blockedCount = users.filter((u) => u.blocked).length;
-    if (q.includes("сколько") && q.includes("pro")) return `Сейчас ${proCount} пользователей на Pro из ${users.length} всего — конверсия ${((proCount / users.length) * 100).toFixed(1)}%.`;
-    if (q.includes("заблок")) return blockedCount > 0 ? `Заблокировано сейчас: ${blockedCount}. Проверьте раздел «Пользователи» → фильтр «Заблокированы».` : "Сейчас никто не заблокирован.";
-    if (q.includes("промокод") || q.includes("промо")) {
-      const active = promos.filter((p) => p.active);
-      return `Активных промокодов: ${active.length} из ${promos.length}. Самый используемый — ${promos.slice().sort((a, b) => b.uses - a.uses)[0]?.code}.`;
-    }
-    if (q.includes("баг") || q.includes("bug")) {
-      const newCount = bugs.filter((b) => b.status === "new").length;
-      return `В буфере ${bugs.length} багов, из них ${newCount} новых и не разобранных ещё. Хотите, соберу промпт по новым?`;
-    }
-    if (q.includes("выручк") || q.includes("доход") || q.includes("mrr")) {
-      return `MRR примерно ${proCount * settings.priceStars} Stars при текущих ${proCount} Pro-подписках. Подробнее — в «Отчёт по выручке».`;
-    }
-    return "Демо-режим: в реальной панели этот вопрос уйдёт в Gemini через /api/admin-chat вместе с текущим контекстом (пользователи, баги, промокоды). Попробуйте спросить про Pro, промокоды, баги или выручку — на них отвечаю уже сейчас по данным этой сессии.";
-  }
-
-  function send() {
+  async function send() {
     const text = draft.trim();
     if (!text || sending) return;
+    const history = messages.filter((m) => m.role === "user" || m.role === "model");
     setMessages((m) => [...m, { role: "user", text }]);
-    setDraft(""); setSending(true);
-    setTimeout(() => {
-      setMessages((m) => [...m, { role: "model", text: answerFor(text) }]);
+    setDraft(""); setSending(true); setError("");
+    try {
+      const { answer } = await askAdminAssistant(text, history);
+      setMessages((m) => [...m, { role: "model", text: answer || "Не удалось получить ответ." }]);
+    } catch (e) {
+      setError(e.message || "Ассистент недоступен — попробуйте ещё раз");
+    } finally {
       setSending(false);
-    }, 700);
+    }
   }
 
   return (
@@ -1576,6 +1583,7 @@ function AssistantChat({ users, promos, bugs, settings }) {
           </div>
         ))}
         {sending && <div style={{ fontSize: 12, color: MUTED_SOFT }}>Ассистент печатает…</div>}
+        {error && <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: DANGER, marginTop: 4 }}><CircleAlert size={12} /> {error}</div>}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, background: CARD_BG, border: CARD_BORDER, borderRadius: 999, padding: "6px 6px 6px 16px", marginTop: 10, boxShadow: CARD_SHADOW }}>
         <input
@@ -1583,7 +1591,7 @@ function AssistantChat({ users, promos, bugs, settings }) {
           placeholder="Спросите ассистента…" value={draft} onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") send(); }}
         />
-        <button type="button" className="fp-btn" onClick={send} style={{ width: 38, height: 38, borderRadius: "50%", background: PURPLE_GRADIENT, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: PURPLE_GRADIENT_SHADOW, flexShrink: 0 }}>
+        <button type="button" className="fp-btn" onClick={send} disabled={sending} style={{ width: 38, height: 38, borderRadius: "50%", background: PURPLE_GRADIENT, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: PURPLE_GRADIENT_SHADOW, flexShrink: 0, opacity: sending ? 0.6 : 1 }}>
           <Send size={16} color="#fff" />
         </button>
       </div>
@@ -1906,7 +1914,10 @@ function BroadcastScreen({ users, notify, onSent }) {
   const recipients = useMemo(() => {
     if (audience === "pro") return users.filter((u) => u.plan === "pro");
     if (audience === "free") return users.filter((u) => u.plan === "free");
-    if (audience === "inactive") return users.filter((u) => !["сегодня", "вчера"].includes(u.lastActive));
+    if (audience === "inactive") {
+      const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      return users.filter((u) => !u.lastSeenAt || new Date(u.lastSeenAt).getTime() < cutoff);
+    }
     return users;
   }, [users, audience]);
 
@@ -2059,7 +2070,28 @@ function BroadcastScreen({ users, notify, onSent }) {
 }
 
 function FeatureFlagsScreen({ notify }) {
-  const [flags, setFlags] = useState(INITIAL_FLAGS);
+  const [flags, setFlags] = useState(null); // null = грузится
+  const [saved, setSaved] = useState(null); // последнее сохранённое состояние — для сравнения "есть несохранённые изменения"
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    fetchFeatureFlags()
+      .then(({ flags: remote }) => {
+        const merged = INITIAL_FLAGS.map((def) => ({
+          ...def,
+          enabled: remote?.[def.id]?.enabled ?? def.enabled,
+          rollout: remote?.[def.id]?.rollout ?? def.rollout,
+        }));
+        setFlags(merged);
+        setSaved(merged);
+      })
+      .catch((e) => {
+        setLoadError(e.message || "Не удалось загрузить — показаны значения по умолчанию");
+        setFlags(INITIAL_FLAGS);
+        setSaved(INITIAL_FLAGS);
+      });
+  }, []);
 
   function toggle(id) {
     setFlags((prev) => prev.map((f) => (f.id === id ? { ...f, enabled: !f.enabled } : f)));
@@ -2067,11 +2099,28 @@ function FeatureFlagsScreen({ notify }) {
   function setRollout(id, value) {
     setFlags((prev) => prev.map((f) => (f.id === id ? { ...f, rollout: value } : f)));
   }
-  function save() { notify("Фиче-флаги сохранены"); }
+
+  const dirty = flags && saved && JSON.stringify(flags) !== JSON.stringify(saved);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await saveFeatureFlags(flags.map((f) => ({ id: f.id, enabled: f.enabled, rollout: f.rollout })));
+      setSaved(flags);
+      notify("Изменения применены");
+    } catch (e) {
+      notify(e.message || "Не удалось сохранить — попробуйте ещё раз");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (flags === null) return <div className="fp-screen"><ListSkeleton rows={4} /></div>;
 
   return (
-    <div className="fp-screen">
-      <div style={{ ...s.banner, background: "#E7EEFC", color: "#3F6FCB" }}><FlaskConical size={14} /> Включайте функции постепенно, на проценте пользователей</div>
+    <div className="fp-screen" style={{ paddingBottom: 76 }}>
+      <div style={{ ...s.banner, background: BLUE_SOFT, color: BLUE }}><FlaskConical size={14} /> Включайте функции постепенно, на проценте пользователей</div>
+      {loadError && <div style={{ fontSize: 12, color: DANGER, marginBottom: 10 }}>{loadError}</div>}
       {flags.map((f) => (
         <div key={f.id} style={s.card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 4 }}>
@@ -2081,17 +2130,24 @@ function FeatureFlagsScreen({ notify }) {
             </div>
             <Switch on={f.enabled} onToggle={() => toggle(f.id)} />
           </div>
-          {f.enabled && (
-            <div style={{ marginTop: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: MUTED, marginBottom: 6 }}>
-                <span>Раскатано на</span><span style={{ fontWeight: 700, color: PURPLE }}>{f.rollout}%</span>
-              </div>
-              <input type="range" min={0} max={100} step={5} value={f.rollout} onChange={(e) => setRollout(f.id, Number(e.target.value))} style={{ width: "100%", accentColor: PURPLE }} />
+          {/* Раскатка имеет смысл только при включённом флаге — при выключенном ползунок
+              не просто скрыт, а показан затемнённым с явной подписью "выключено", чтобы не
+              создавалось впечатление, будто процент где-то ещё продолжает действовать. */}
+          <div style={{ marginTop: 12, opacity: f.enabled ? 1 : 0.4, pointerEvents: f.enabled ? "auto" : "none" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: MUTED, marginBottom: 6 }}>
+              <span>Раскатано на</span>
+              <span style={{ fontWeight: 700, color: f.enabled ? PURPLE : MUTED }}>{f.enabled ? `${f.rollout}%` : "выключено"}</span>
             </div>
-          )}
+            <input type="range" min={0} max={100} step={5} value={f.rollout} disabled={!f.enabled} onChange={(e) => setRollout(f.id, Number(e.target.value))} style={{ width: "100%", accentColor: PURPLE }} />
+          </div>
         </div>
       ))}
-      <button type="button" className="fp-btn" onClick={save} style={{ ...s.primaryPill, width: "100%", marginTop: 6 }}>Сохранить</button>
+
+      <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, padding: "12px 16px calc(12px + env(safe-area-inset-bottom))", background: "var(--fp-bg)", borderTop: CARD_BORDER }}>
+        <button type="button" className="fp-btn" onClick={save} disabled={!dirty || saving} style={{ ...s.primaryPill, width: "100%", opacity: !dirty || saving ? 0.5 : 1 }}>
+          {saving ? "Применяем…" : dirty ? "Применить изменения" : "Изменений нет"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -2113,7 +2169,7 @@ function ExportScreen({ users, transactions, promos, notify }) {
   const exporters = [
     {
       key: "users", label: "Пользователи", hint: `${users.length} записей — имя, тариф, дата регистрации`,
-      run: () => downloadCsv("users.csv", toCsv(users.map((u) => ({ name: u.name, tg: u.tg, plan: u.plan, joined: u.joined, contacts: u.contacts, blocked: u.blocked })), ["name", "tg", "plan", "joined", "contacts", "blocked"])),
+      run: () => downloadCsv("users.csv", toCsv(users.map((u) => ({ name: u.name, tg: u.tgUsername, plan: u.plan, joined: u.firstSeenAt, blocked: u.blocked })), ["name", "tg", "plan", "joined", "blocked"])),
     },
     {
       key: "transactions", label: "Транзакции", hint: `${transactions.length} записей — сумма, статус, дата`,
@@ -2271,7 +2327,20 @@ function ReferralScreen() {
 }
 
 function OnboardingScreen({ notify }) {
-  const [steps, setSteps] = useState(INITIAL_ONBOARDING);
+  const [steps, setSteps] = useState(null); // null = грузится
+  const [saved, setSaved] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    fetchOnboardingSteps()
+      .then(({ steps }) => { setSteps(steps); setSaved(steps); })
+      .catch((e) => {
+        setLoadError(e.message || "Не удалось загрузить — показан порядок по умолчанию");
+        setSteps(INITIAL_ONBOARDING); setSaved(INITIAL_ONBOARDING);
+      });
+  }, []);
+
   function toggle(id) { setSteps((prev) => prev.map((s0) => (s0.id === id ? { ...s0, enabled: !s0.enabled } : s0))); }
   function move(id, dir) {
     setSteps((prev) => {
@@ -2283,13 +2352,30 @@ function OnboardingScreen({ notify }) {
       return next;
     });
   }
-  function save() { notify("Порядок онбординга сохранён"); }
+
+  const dirty = steps && saved && JSON.stringify(steps) !== JSON.stringify(saved);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await saveOnboardingSteps(steps.map((st) => ({ id: st.id, enabled: st.enabled })));
+      setSaved(steps);
+      notify("Порядок онбординга сохранён");
+    } catch (e) {
+      notify(e.message || "Не удалось сохранить — попробуйте ещё раз");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (steps === null) return <div className="fp-screen"><ListSkeleton rows={4} /></div>;
 
   return (
-    <div className="fp-screen">
-      <div style={{ ...s.banner, background: "#E7EEFC", color: "#3F6FCB" }}><ListOrdered size={14} /> Порядок и состав шагов применяются без деплоя</div>
+    <div className="fp-screen" style={{ paddingBottom: 76 }}>
+      <div style={{ ...s.banner, background: BLUE_SOFT, color: BLUE }}><ListOrdered size={14} /> Порядок и состав шагов применяются без деплоя</div>
+      {loadError && <div style={{ fontSize: 12, color: DANGER, marginBottom: 10 }}>{loadError}</div>}
       {steps.map((st, i) => (
-        <div key={st.id} style={{ ...s.card, display: "flex", alignItems: "center", gap: 10 }}>
+        <div key={st.id} style={{ ...s.card, display: "flex", alignItems: "center", gap: 10, opacity: st.enabled ? 1 : 0.55 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
             <button type="button" className="fp-btn" onClick={() => move(st.id, -1)} disabled={i === 0} style={{ opacity: i === 0 ? 0.25 : 1 }}><ChevronDown size={14} color={MUTED} style={{ transform: "rotate(180deg)" }} /></button>
             <button type="button" className="fp-btn" onClick={() => move(st.id, 1)} disabled={i === steps.length - 1} style={{ opacity: i === steps.length - 1 ? 0.25 : 1 }}><ChevronDown size={14} color={MUTED} /></button>
@@ -2297,12 +2383,17 @@ function OnboardingScreen({ notify }) {
           <div style={{ width: 24, height: 24, borderRadius: 8, background: PURPLE_SOFT, color: PURPLE, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{i + 1}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13.5, fontWeight: 700, color: INK }}>{st.title}</div>
-            <div style={{ fontSize: 11.5, color: MUTED, marginTop: 1 }}>{st.hint}</div>
+            <div style={{ fontSize: 11.5, color: MUTED, marginTop: 1 }}>{st.enabled ? st.hint : "Шаг выключен — не показывается новым пользователям"}</div>
           </div>
           <Switch on={st.enabled} onToggle={() => toggle(st.id)} />
         </div>
       ))}
-      <button type="button" className="fp-btn" onClick={save} style={{ ...s.primaryPill, width: "100%", marginTop: 6 }}>Сохранить порядок</button>
+
+      <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, padding: "12px 16px calc(12px + env(safe-area-inset-bottom))", background: "var(--fp-bg)", borderTop: CARD_BORDER }}>
+        <button type="button" className="fp-btn" onClick={save} disabled={!dirty || saving} style={{ ...s.primaryPill, width: "100%", opacity: !dirty || saving ? 0.5 : 1 }}>
+          {saving ? "Сохраняем…" : dirty ? "Сохранить порядок" : "Изменений нет"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -2356,7 +2447,7 @@ function SnapshotScreen({ settings, setSettings, notify }) {
 
   return (
     <div className="fp-screen">
-      <div style={{ ...s.banner, background: "#E7EEFC", color: "#3F6FCB" }}><DatabaseBackup size={14} /> Цены, модель и лимиты можно откатить одним тапом</div>
+      <div style={{ ...s.banner, background: BLUE_SOFT, color: BLUE }}><DatabaseBackup size={14} /> Цены, модель и лимиты можно откатить одним тапом</div>
       <button type="button" className="fp-btn" onClick={takeSnapshot} style={{ ...s.primaryPill, width: "100%", marginBottom: 14 }}>
         <DatabaseBackup size={15} /> Сделать снапшот сейчас
       </button>
@@ -2489,7 +2580,7 @@ function LoginHistoryScreen({ notify }) {
 
   return (
     <div className="fp-screen">
-      <div style={{ ...s.banner, background: "#E7EEFC", color: "#3F6FCB" }}><Smartphone size={14} /> Реальные входы в панель — по User-Agent и IP, без выдуманных городов</div>
+      <div style={{ ...s.banner, background: BLUE_SOFT, color: BLUE }}><Smartphone size={14} /> Реальные входы в панель — по User-Agent и IP, без выдуманных городов</div>
       {entries === null ? (
         listError ? <div style={{ fontSize: 12.5, color: DANGER }}>{listError}</div> : <ListSkeleton rows={3} />
       ) : entries.length === 0 ? (
@@ -2593,7 +2684,7 @@ function NotesScreen({ notify }) {
   function save() { setSaved(true); notify("Заметки сохранены"); }
   return (
     <div className="fp-screen">
-      <div style={{ ...s.banner, background: "#FBEEDD", color: GOLD }}><StickyNote size={14} /> Личное пространство — видно только супер-админам</div>
+      <div style={{ ...s.banner, background: AMBER_BG, color: GOLD }}><StickyNote size={14} /> Личное пространство — видно только супер-админам</div>
       <div style={s.card}>
         <textarea
           value={notes} onChange={(e) => { setNotes(e.target.value); setSaved(false); }} rows={10}
@@ -2620,7 +2711,7 @@ function HeatmapScreen() {
 
   return (
     <div className="fp-screen">
-      <div style={{ ...s.banner, background: "#E7EEFC", color: "#3F6FCB" }}><Flame size={14} /> Построено по журналу действий за последние 4 недели</div>
+      <div style={{ ...s.banner, background: BLUE_SOFT, color: BLUE }}><Flame size={14} /> Построено по журналу действий за последние 4 недели</div>
       {error && <div style={{ fontSize: 12.5, color: DANGER, marginBottom: 12 }}>{error}</div>}
       {grid === null ? <ListSkeleton rows={3} /> : (
         <>
@@ -2686,7 +2777,7 @@ function WidgetsScreen({ widgets, setWidgets, notify }) {
 /* Иконка + подпись категории для строки в выпадающем списке @упоминаний */
 const MENTION_KIND_META = {
   admin: { icon: Shield, color: PURPLE },
-  user: { icon: UsersIcon, color: "#3F6FCB" },
+  user: { icon: UsersIcon, color: BLUE },
   bug: { icon: Bug, color: DANGER },
 };
 
@@ -2926,7 +3017,7 @@ function buildMenuGroups(role, unreadChat) {
       title: "Команда",
       items: [
         { key: "teamChat", icon: MessagesSquare, label: "Чат команды", hint: "Обсуждение с другими админами", bg: PURPLE_SOFT, color: PURPLE, badge: unreadChat > 0 ? unreadChat : null },
-        { key: "audit", icon: ClipboardList, label: "Журнал действий", hint: "Кто и что менял", bg: "#EAF0FF", color: "#3F6FCB" },
+        { key: "audit", icon: ClipboardList, label: "Журнал действий", hint: "Кто и что менял", bg: "#EAF0FF", color: BLUE },
         role === "super" && { key: "heatmap", icon: Flame, label: "Активность админов", hint: "Когда команда работает в панели", bg: DANGER_BG, color: DANGER },
         role === "super" && { key: "roles", icon: UsersIcon, label: "Роли и доступы", hint: "Кто и что может делать в панели", bg: PURPLE_SOFT, color: PURPLE },
       ].filter(Boolean),
@@ -2936,7 +3027,7 @@ function buildMenuGroups(role, unreadChat) {
       roleOnly: true,
       items: [
         { key: "payment", icon: CreditCard, label: "Оплата и цены", hint: "Stars, карта, СБП", bg: SUCCESS_BG, color: SUCCESS },
-        { key: "transactions", icon: Receipt, label: "Транзакции", hint: "История платежей", bg: "#FBEEDD", color: GOLD },
+        { key: "transactions", icon: Receipt, label: "Транзакции", hint: "История платежей", bg: AMBER_BG, color: GOLD },
         { key: "revenue", icon: BarChart3, label: "Отчёт по выручке", hint: "MRR, конверсия, отток", bg: SUCCESS_BG, color: SUCCESS },
         { key: "referrals", icon: GitBranch, label: "Рефералы", hint: "Кто кого привёл, бонусы", bg: PURPLE_SOFT, color: PURPLE },
       ],
@@ -2946,34 +3037,34 @@ function buildMenuGroups(role, unreadChat) {
       items: [
         { key: "moderation", icon: Flag, label: "Модерация", hint: "Подозрительная активность", bg: DANGER_BG, color: DANGER },
         { key: "bugs", icon: Bug, label: "Баг-репорты", hint: "Статусы: новый/в работе/решено", bg: DANGER_BG, color: DANGER },
-        { key: "broadcast", icon: Megaphone, label: "Рассылка", hint: "Сообщение всем или сегменту", bg: "#E7EEFC", color: "#3F6FCB" },
+        { key: "broadcast", icon: Megaphone, label: "Рассылка", hint: "Сообщение всем или сегменту", bg: BLUE_SOFT, color: BLUE },
       ],
     },
     {
       title: "Продукт",
       roleOnly: true,
       items: [
-        { key: "model", icon: Cpu, label: "AI-модель и лимиты", hint: "Gemini, фичи, квоты", bg: "#E7EEFC", color: "#3F6FCB" },
-        { key: "aiUsage", icon: Activity, label: "Расход AI", hint: "Запросы, топ пользователей, стоимость", bg: "#E7EEFC", color: "#3F6FCB" },
-        { key: "flags", icon: FlaskConical, label: "Фиче-флаги", hint: "Постепенный раскат функций", bg: "#E7EEFC", color: "#3F6FCB" },
-        { key: "onboarding", icon: ListOrdered, label: "Онбординг", hint: "Шаги первого запуска", bg: "#E7EEFC", color: "#3F6FCB" },
+        { key: "model", icon: Cpu, label: "AI-модель и лимиты", hint: "Gemini, фичи, квоты", bg: BLUE_SOFT, color: BLUE },
+        { key: "aiUsage", icon: Activity, label: "Расход AI", hint: "Запросы, топ пользователей, стоимость", bg: BLUE_SOFT, color: BLUE },
+        { key: "flags", icon: FlaskConical, label: "Фиче-флаги", hint: "Постепенный раскат функций", bg: BLUE_SOFT, color: BLUE },
+        { key: "onboarding", icon: ListOrdered, label: "Онбординг", hint: "Шаги первого запуска", bg: BLUE_SOFT, color: BLUE },
         { key: "localization", icon: Globe, label: "Локализация", hint: "Языки и переводы строк", bg: SUCCESS_BG, color: SUCCESS },
         { key: "metrics", icon: BarChart3, label: "Метрики продукта", hint: "DAU/WAU/MAU, retention, воронка", bg: PURPLE_SOFT, color: PURPLE },
         { key: "cohorts", icon: Grid3x3, label: "Когортный анализ", hint: "Retention по месяцу регистрации", bg: PURPLE_SOFT, color: PURPLE },
         { key: "nps", icon: Smile, label: "NPS", hint: "Удовлетворённость пользователей", bg: SUCCESS_BG, color: SUCCESS },
-        { key: "notes", icon: StickyNote, label: "Заметки", hint: "Конкуренты, цены, наблюдения", bg: "#FBEEDD", color: GOLD },
-        { key: "widgets", icon: LayoutGrid, label: "Виджеты Главной", hint: "Что показывать первым", bg: "#E7EEFC", color: "#3F6FCB" },
+        { key: "notes", icon: StickyNote, label: "Заметки", hint: "Конкуренты, цены, наблюдения", bg: AMBER_BG, color: GOLD },
+        { key: "widgets", icon: LayoutGrid, label: "Виджеты Главной", hint: "Что показывать первым", bg: BLUE_SOFT, color: BLUE },
       ],
     },
     {
       title: "Безопасность",
       roleOnly: true,
       items: [
-        { key: "snapshots", icon: DatabaseBackup, label: "Снапшоты настроек", hint: "Сохранить и откатить конфиг", bg: "#E7EEFC", color: "#3F6FCB" },
+        { key: "snapshots", icon: DatabaseBackup, label: "Снапшоты настроек", hint: "Сохранить и откатить конфиг", bg: BLUE_SOFT, color: BLUE },
         { key: "secrets", icon: KeyRound, label: "Возраст секретов", hint: "Когда пора менять ключи", bg: AMBER_BG, color: AMBER },
         { key: "maintenance", icon: Wrench, label: "Режим обслуживания", hint: "Баннер техработ для пользователей", bg: DANGER_BG, color: DANGER },
         { key: "webhook", icon: Wifi, label: "Вебхук Telegram", hint: "Статус и последний пинг", bg: SUCCESS_BG, color: SUCCESS },
-        { key: "loginHistory", icon: Smartphone, label: "Входы в аккаунт", hint: "Устройства, где выполнен вход", bg: "#E7EEFC", color: "#3F6FCB" },
+        { key: "loginHistory", icon: Smartphone, label: "Входы в аккаунт", hint: "Устройства, где выполнен вход", bg: BLUE_SOFT, color: BLUE },
         { key: "alerts", icon: BellRing, label: "Алерты", hint: "Уведомления админам в Telegram", bg: AMBER_BG, color: AMBER },
       ],
     },
@@ -3132,7 +3223,7 @@ function RolesScreen({ templates, onInvite, onManageTemplates }) {
     try {
       const { link } = await onInvite({ role, permissions: t ? t.items : [] });
       if (!link) {
-        setError("Ссылка создана, но VITE_ADMIN_MINIAPP_LINK не задан — добавьте её в .env, чтобы получать готовую ссылку");
+        setError("Ссылка создана, но VITE_MINIAPP_LINK не задан — добавьте её в .env, чтобы получать готовую ссылку");
       } else {
         setCreatedLink(link);
         loadList();
@@ -3152,7 +3243,7 @@ function RolesScreen({ templates, onInvite, onManageTemplates }) {
 
   return (
     <div className="fp-screen">
-      <div style={{ ...s.banner, background: "#E7EEFC", color: "#3F6FCB" }}>
+      <div style={{ ...s.banner, background: BLUE_SOFT, color: BLUE }}>
         <ShieldCheck size={14} /> Права проверяются и на сервере — скрытие пункта в интерфейсе не заменяет проверку доступа в API
       </div>
 
@@ -3705,12 +3796,24 @@ const MORE_TAB_SCREENS = new Set(Object.keys(TITLES).filter((k) => !TOP_LEVEL.ha
 export default function AdminApp() {
   const [session, setSession] = useState(null); // { role } | null
   const [stack, setStack] = useState(["home"]);
+  const [lastScreen, setLastScreen] = useState(null); // последний просмотренный экран — для "Продолжить" на Home (см. goTab)
 
   const [promos, setPromos] = useState(INITIAL_PROMOS);
   const [auditLog, setAuditLog] = useState(INITIAL_AUDIT_LOG);
   const [transactions] = useState(INITIAL_TRANSACTIONS);
   const [priceHistory, setPriceHistory] = useState(PRICE_HISTORY);
   const [selectedUser, setSelectedUser] = useState(null); // объект реального пользователя (см. openUser)
+  // Реальный список пользователей для Revenue/Metrics/Broadcast/Export —
+  // раньше эти 4 экрана (и AssistantChat, которому он вообще не нужен) читали
+  // мок INITIAL_USERS с верхнего уровня; когда мок убрали, все они стали
+  // падать с ReferenceError при открытии, потому что users нигде больше не
+  // объявлен. UsersScreen ниже использует СВОЙ отдельный fetch (с debounce
+  // поиска) — этот, наоборот, грузится один раз и не фильтруется.
+  const [users, setUsers] = useState([]);
+  useEffect(() => {
+    if (!session) return;
+    fetchAdminUsers().then(({ users }) => setUsers(users)).catch(() => {});
+  }, [session]);
   const [toast, setToast] = useState("");
   const [settings, setSettings] = useState({
     methods: { stars: true, card: false, sbp: false },
@@ -3816,7 +3919,13 @@ export default function AdminApp() {
   }
   function push(scr) { if (scr === "teamChat") setUnreadChat(0); setStack((st) => [...st, scr]); }
   function back() { setStack((st) => (st.length > 1 ? st.slice(0, -1) : st)); }
-  function goTab(key) { setStack([key]); }
+  function goTab(key) {
+    // Запоминаем, где были, только если реально уходим с содержательного
+    // экрана (не с самого home — иначе "продолжить" зацикливался бы сам на себя).
+    if (screen !== "home" && screen !== key) setLastScreen(screen);
+    setStack([key]);
+  }
+  function resumeLast() { if (lastScreen) push(lastScreen); }
   function openUser(user) { setSelectedUser(user); push("userDetail"); }
   function openAdminRole(id) { setSelectedAdminId(id); push("adminRole"); }
   function openTemplateDetail(id) { setSelectedTemplateId(id); push("templateDetail"); }
@@ -3843,7 +3952,7 @@ export default function AdminApp() {
   }
   async function inviteAdmin({ role, permissions }) {
     const { startParam } = await createAdminInvite(role, permissions);
-    const base = import.meta.env.VITE_ADMIN_MINIAPP_LINK;
+    const base = import.meta.env.VITE_MINIAPP_LINK;
     const link = base ? `${base}?startapp=${startParam}` : null;
     const tKey = matchTemplate(permissions, templates);
     logAction("Создана ссылка-приглашение", `Набор прав: ${tKey ? templates.find((t) => t.id === tKey).label : "свой набор"}`);
@@ -3874,7 +3983,7 @@ export default function AdminApp() {
     notify("Доступ отозван");
     back();
   }
-  function logout() { setSession(null); setSessionWarning(false); setStack(["home"]); }
+  function logout() { setSession(null); setSessionWarning(false); setStack(["home"]); setLastScreen(null); }
 
   function logAction(action, reason) {
     setAuditLog((prev) => [{ id: Date.now(), actor: session?.role === "super" ? "Вы (супер-админ)" : "Вы (модератор)", action, reason, time: "только что" }, ...prev]);
@@ -3936,14 +4045,14 @@ export default function AdminApp() {
       <style>{globalCss}</style>
       <Header title={TITLES[guardedScreen]} onBack={TOP_LEVEL.has(guardedScreen) ? null : back} identity={{ name: adminName, color: adminColor }} onProfileTap={() => push("profile")} darkMode={darkMode} onToggleDark={() => setDarkMode((d) => !d)} />
       <div style={s.page}>
-        {guardedScreen === "home" && <HomeScreen unreadChat={unreadChat} onNav={push} widgets={homeWidgets} priceStars={settings.priceStars} pinned={pinned} role={role} adminName={adminName} />}
+        {guardedScreen === "home" && <HomeScreen unreadChat={unreadChat} onNav={push} widgets={homeWidgets} priceStars={settings.priceStars} pinned={pinned} role={role} adminName={adminName} lastScreen={lastScreen} onResume={resumeLast} />}
         {guardedScreen === "users" && <UsersScreen onOpenUser={openUser} />}
         {guardedScreen === "userDetail" && <UserDetailScreen user={selectedUser} onTogglePlan={togglePlan} onToggleBlock={toggleBlock} role={role} isRateLimited={isRateLimited} registerDangerousAction={registerDangerousAction} notify={notify} />}
         {guardedScreen === "promo" && <PromoScreen />}
         {guardedScreen === "payment" && <PaymentScreen settings={settings} setSettings={setSettings} notify={notify} onPriceChange={onPriceChange} isRateLimited={isRateLimited} registerDangerousAction={registerDangerousAction} />}
         {guardedScreen === "model" && <ModelScreen settings={settings} setSettings={setSettings} notify={notify} />}
         {guardedScreen === "bugs" && <BugReports notify={notify} />}
-        {guardedScreen === "assistant" && <AssistantChat users={users} promos={promos} bugs={bugs} settings={settings} />}
+        {guardedScreen === "assistant" && <AssistantChat />}
         {guardedScreen === "more" && <MoreScreen onNav={push} onLogout={logout} role={role} unreadChat={unreadChat} pinned={pinned} onTogglePin={onTogglePin} />}
         {guardedScreen === "profile" && <AdminProfileScreen name={adminName} setName={updateAdminName} color={adminColor} setColor={setAdminColor} role={role} auditLog={auditLog} notify={notify} darkMode={darkMode} onToggleDark={() => setDarkMode((d) => !d)} />}
         {guardedScreen === "teamChat" && <TeamChatScreen />}
